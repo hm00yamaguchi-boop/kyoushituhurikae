@@ -108,15 +108,12 @@ window.addEventListener("unhandledrejection", function(event) {
   debugLog("unhandledrejection: " + (reason && reason.message ? reason.message : String(reason)));
 });
 
-// GASのAPIを呼ぶ共通関数（fetchで直接HTTPリクエストする）
+// GASのAPIを呼ぶ共通関数（GETリクエストで直接呼び出す）
 async function callApi(action, params) {
-  const body = Object.assign({ action: action }, params || {});
+  const url = API_URL + "?action=" + encodeURIComponent(action) +
+    "&payload=" + encodeURIComponent(JSON.stringify(params || {}));
 
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(body)
-  });
+  const response = await fetch(url, { method: "GET" });
 
   if (!response.ok) {
     throw new Error("サーバーとの通信に失敗しました（ステータス " + response.status + "）。");
