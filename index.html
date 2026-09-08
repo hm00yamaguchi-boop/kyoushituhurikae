@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>トランポリン教室 欠席・振替</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN",sans-serif; background:#f5f7fa; color:#172033; }
+  .header { background:#203044; color:white; padding:18px 20px; }
+  .header h1 { margin:0; font-size:19px; }
+  .main { max-width:480px; margin:0 auto; padding:18px; }
+  .card { background:white; border-radius:14px; padding:20px; margin-bottom:16px; }
+  input { width:100%; padding:13px 12px; margin-top:7px; border:1px solid #cbd5e1; border-radius:9px; font-size:16px; }
+  label { display:block; font-weight:700; font-size:13px; margin-top:14px; }
+  button.primary { width:100%; border:0; border-radius:9px; padding:13px; background:#2563eb; color:white; font-weight:800; cursor:pointer; font-size:15px; margin-top:16px; }
+  .notice { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; }
+  .error { color:#dc2626; margin-top:10px; font-size:13px; white-space:pre-wrap; }
+  .hidden { display:none; }
+  .loading { text-align:center; color:#64748b; padding:40px 10px; }
+  .childCard { border:1px solid #e2e8f0; border-radius:11px; padding:14px; margin-top:10px; }
+  .childName { font-weight:900; font-size:17px; }
+  .sub { color:#64748b; font-size:13px; margin-top:4px; }
+</style>
+</head>
+<body>
+
+<div class="header"><h1>トランポリン教室 欠席・振替</h1></div>
+
+<div class="main">
+
+  <div id="loadingPage" class="card">
+    <div class="loading" id="loadingText">読み込み中...</div>
+  </div>
+
+  <div id="linkPage" class="card hidden">
+    <h2 style="margin-top:0;">初回連携</h2>
+    <div class="notice">スタッフからお伝えした6桁の連携コードを入力してください。次回以降は入力不要です。</div>
+    <label>連携コード
+      <input id="codeInput" type="text" inputmode="numeric" maxlength="6" placeholder="123456">
+    </label>
+    <button class="primary" onclick="submitLinkCode()">連携する</button>
+    <div id="linkError" class="error hidden"></div>
+  </div>
+
+  <div id="homePage" class="card hidden">
+    <h2 style="margin-top:0;"><span id="homeGuardian"></span> 様</h2>
+    <div class="notice">連携が完了しました。欠席・振替の機能は準備中です。今しばらくお待ちください。</div>
+    <div id="homeChildren"></div>
+  </div>
+
+  <div id="fatalError" class="card hidden">
+    <div class="error" id="fatalErrorText"></div>
+  </div>
+
+  <div class="card">
+    <div style="font-size:12px; font-weight:700; color:#64748b; margin-bottom:6px;">動作確認用ログ</div>
+    <pre id="debugLog" style="margin:0; padding:10px; background:#111827; color:#a7f3d0; font-size:11px; line-height:1.5; border-radius:8px; white-space:pre-wrap; word-break:break-all; max-height:320px; overflow:auto;"></pre>
+  </div>
+
+</div>
+
+<script>
+
+// ====================================
+// ここを、GASの「保護者用デプロイ」のURLに書き換えてください
+// （末尾は /exec のままでOKです。?page=parent は付けません）
+// ====================================
+const API_URL = "https://script.google.com/macros/s/AKfycbwmx321DKDnWy6ZA5gdSfXHyIOfNbfOQ2pwy2UjDcwvjm2xexPQyrLvWCw2PuGryRMoKQ/exec";
+const LIFF_ID = "2011505032-D704RNlb";
+
+let currentIdToken = "";
+let parentToken = "";
+
+function showPage(id) {
+  ["loadingPage", "linkPage", "homePage", "fatalError"].forEach(function(pageId) {
+    document.getElementById(pageId).classList.add("hidden");
+  });
+  document.getElementById(id).classList.remove("hidden");
+}
+
+function setStatus(text) {
+  const el = document.getElementById("loadingText");
+  if (el) el.textContent = text;
+  debugLog(text);
+}
+
+function debugLog(text) {
+  const el = document.getElementById("debugLog");
+  if (!el) return;
+  const time = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  el.textContent += "[" + time + "] " + text + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+function fatal(message) {
+  debugLog("FATAL: " + message);
+  document.getElementById("fatalErrorText").textContent = message;
+  showPage("fatalError");
+}
+
+window.addEventListener("error", function(event) {
+  debugLog("window.error: " + (event.message || "不明なエラー"));
+});
+window.addEventListener("unhandledrejection", function(event) {
+  const reason = event.reason;
+  debugLog("unhandledrejection: " + (reason && reason.message ? reason.message : String(reason)));
+});
+
+// GASのAPIを呼ぶ共通関数（fetchで直接HTTPリクエストする）
+async function callApi(action, params) {
+  const body = Object.assign({ action: action }, params || {});
+
+  const response = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    throw new Error("サーバーとの通信に失敗しました（ステータス " + response.status + "）。");
+  }
+
+  return response.json();
+}
+
+async function init() {
+  try {
+    setStatus("LIFFを初期化しています...");
+    await liff.init({ liffId: LIFF_ID });
+
+    setStatus("ログイン状態を確認しています...");
+    if (!liff.isLoggedIn()) {
+      setStatus("LINEログイン画面へ移動します...");
+      liff.login();
+      return;
+    }
+
+    setStatus("ログイン情報を取得しています...");
+    currentIdToken = liff.getIDToken();
+    if (!currentIdToken) {
+      fatal("LINEのログイン情報を取得できませんでした。LIFFのScope設定に「openid」が含まれているか確認してください。");
+      return;
+    }
+
+    setStatus("サーバーに問い合わせています...");
+    const res = await callApi("parentLogin", { idToken: currentIdToken });
+
+    if (!res.success) { fatal(res.error); return; }
+
+    if (res.data.linked) {
+      parentToken = res.data.token;
+      loadHome();
+    } else {
+      showPage("linkPage");
+    }
+
+  } catch (error) {
+    fatal("初期化に失敗しました：" + (error.message || String(error)));
+  }
+}
+
+function submitLinkCode() {
+  const code = document.getElementById("codeInput").value.trim();
+  const errorBox = document.getElementById("linkError");
+  errorBox.classList.add("hidden");
+
+  if (!/^\d{6}$/.test(code)) {
+    errorBox.textContent = "6桁の連携コードを入力してください。";
+    errorBox.classList.remove("hidden");
+    return;
+  }
+
+  liff.getProfile().then(async function(profile) {
+    try {
+      const res = await callApi("linkByCode", {
+        idToken: currentIdToken,
+        code: code,
+        displayName: profile.displayName || ""
+      });
+
+      if (!res.success) {
+        errorBox.textContent = res.error;
+        errorBox.classList.remove("hidden");
+        return;
+      }
+
+      parentToken = res.data.token;
+      loadHome();
+
+    } catch (error) {
+      errorBox.textContent = error.message || String(error);
+      errorBox.classList.remove("hidden");
+    }
+  }).catch(function() {
+    errorBox.textContent = "LINEのプロフィール取得に失敗しました。";
+    errorBox.classList.remove("hidden");
+  });
+}
+
+async function loadHome() {
+  showPage("loadingPage");
+  setStatus("お子さまの情報を読み込んでいます...");
+
+  try {
+    const res = await callApi("getParentHome", { token: parentToken });
+    if (!res.success) { fatal(res.error); return; }
+
+    document.getElementById("homeGuardian").textContent = res.data.guardianName || "";
+
+    const area = document.getElementById("homeChildren");
+    area.innerHTML = "";
+
+    (res.data.students || []).forEach(function(student) {
+      const div = document.createElement("div");
+      div.className = "childCard";
+      div.innerHTML =
+        "<div class='childName'>" + student.studentName + "</div>" +
+        "<div class='sub'>" + student.classId + "</div>";
+      area.appendChild(div);
+    });
+
+    showPage("homePage");
+
+  } catch (error) {
+    fatal(error.message || String(error));
+  }
+}
+
+init();
+
+</script>
+
+</body>
+</html>
