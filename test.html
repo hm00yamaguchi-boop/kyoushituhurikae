@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>通信テスト</title>
+<style>
+  body { font-family:-apple-system,sans-serif; padding:20px; background:#f5f7fa; }
+  button { width:100%; padding:16px; font-size:16px; font-weight:bold; background:#2563eb; color:white; border:0; border-radius:10px; margin-top:14px; }
+  pre { margin-top:16px; padding:12px; background:#111827; color:#a7f3d0; font-size:12px; white-space:pre-wrap; word-break:break-all; border-radius:8px; }
+</style>
+</head>
+<body>
+
+<h2>GASとの通信テスト（LINE不要）</h2>
+<p>このページ単体で、GASサーバーへの通信ができるかだけを確認します。</p>
+
+<button onclick="runTest()">テスト実行</button>
+
+<pre id="log">まだ実行していません。</pre>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbwmx321DKDnWy6ZA5gdSfXHyIOfNbfOQ2pwy2UjDcwvjm2xexPQyrLvWCw2PuGryRMoKQ/exec";
+
+function log(text) {
+  document.getElementById("log").textContent += "\n" + text;
+}
+
+async function runTest() {
+  document.getElementById("log").textContent = "開始...";
+  log("URL: " + API_URL);
+  log("navigator.userAgent: " + navigator.userAgent);
+
+  try {
+    const url = API_URL + "?action=getParentHome&payload=" + encodeURIComponent(JSON.stringify({ token: "test" }));
+    log("fetch開始...");
+    const response = await fetch(url, { method: "GET" });
+    log("fetch成功。ステータス: " + response.status);
+    const text = await response.text();
+    log("応答本文: " + text.slice(0, 300));
+  } catch (error) {
+    log("fetch失敗: " + (error && error.message ? error.message : String(error)));
+    log("error.name: " + (error && error.name));
+  }
+}
+</script>
+
+</body>
+</html>
