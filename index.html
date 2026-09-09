@@ -10,18 +10,41 @@
   body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN",sans-serif; background:#f5f7fa; color:#172033; }
   .header { background:#203044; color:white; padding:18px 20px; }
   .header h1 { margin:0; font-size:19px; }
-  .main { max-width:480px; margin:0 auto; padding:18px; }
+  .main { max-width:520px; margin:0 auto; padding:18px; }
   .card { background:white; border-radius:14px; padding:20px; margin-bottom:16px; }
   input { width:100%; padding:13px 12px; margin-top:7px; border:1px solid #cbd5e1; border-radius:9px; font-size:16px; }
   label { display:block; font-weight:700; font-size:13px; margin-top:14px; }
   button.primary { width:100%; border:0; border-radius:9px; padding:13px; background:#2563eb; color:white; font-weight:800; cursor:pointer; font-size:15px; margin-top:16px; }
+  button.secondary { border:1px solid #cbd5e1; border-radius:9px; padding:11px 14px; background:white; cursor:pointer; font-weight:700; }
+  button.danger { border:1px solid #ef4444; border-radius:9px; padding:11px 14px; background:white; color:#dc2626; cursor:pointer; font-weight:700; }
   .notice { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; }
+  .warning { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; }
   .error { color:#dc2626; margin-top:10px; font-size:13px; white-space:pre-wrap; }
   .hidden { display:none; }
   .loading { text-align:center; color:#64748b; padding:40px 10px; }
-  .childCard { border:1px solid #e2e8f0; border-radius:11px; padding:14px; margin-top:10px; }
-  .childName { font-weight:900; font-size:17px; }
-  .sub { color:#64748b; font-size:13px; margin-top:4px; }
+  .toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .childCard, .lessonRow, .transferRow, .classRow { border:1px solid #e2e8f0; border-radius:11px; padding:14px; margin-top:10px; }
+  .childName, .lessonName { font-weight:900; font-size:17px; }
+  .sub { color:#64748b; font-size:13px; margin-top:4px; line-height:1.5; }
+  .actionGrid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+  .actionCard { text-align:left; min-height:88px; background:white; border:1px solid #cbd5e1; border-radius:12px; padding:14px; cursor:pointer; }
+  .actionCard strong { display:block; font-size:15px; margin-bottom:5px; }
+  .lessonChoice { display:flex; align-items:flex-start; gap:11px; }
+  .lessonChoice input { width:21px; height:21px; margin:2px 0 0; }
+  .countBar { margin:14px 0; padding:11px 13px; border-radius:9px; background:#f8fafc; font-weight:800; }
+  .choiceActions { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+  .calendarHeader { display:grid; grid-template-columns:80px 1fr 80px; gap:8px; align-items:center; margin:14px 0 10px; }
+  .calendarTitle { text-align:center; font-size:18px; font-weight:900; }
+  .calendarWeek, .calendarGrid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; }
+  .calendarWeek div { text-align:center; font-size:11px; font-weight:800; color:#64748b; padding:4px 0; }
+  .calendarDay { border:1px solid #e2e8f0; background:white; border-radius:8px; min-height:58px; padding:6px 5px; text-align:left; }
+  button.calendarDay { cursor:pointer; }
+  .calendarDay.disabled { background:#f1f5f9; color:#94a3b8; cursor:default; }
+  .calendarDay.selected { outline:2px solid #2563eb; }
+  .dayNumber { font-weight:900; font-size:13px; }
+  .daySub { font-size:9px; margin-top:3px; line-height:1.3; }
+  .loadingSmall, .empty { text-align:center; color:#64748b; padding:20px 10px; font-size:13px; }
+  .backLink { color:#2563eb; text-decoration:none; font-size:13px; display:inline-block; margin-bottom:10px; }
 </style>
 </head>
 <body>
@@ -44,10 +67,104 @@
     <div id="linkError" class="error hidden"></div>
   </div>
 
+  <!-- ホーム -->
   <div id="homePage" class="card hidden">
     <h2 style="margin-top:0;"><span id="homeGuardian"></span> 様</h2>
-    <div class="notice">連携が完了しました。欠席・振替の機能は準備中です。今しばらくお待ちください。</div>
     <div id="homeChildren"></div>
+
+    <div class="actionGrid">
+      <button class="actionCard" onclick="openAbsence()">
+        <strong>欠席を登録</strong>
+        これから休むレッスンを選択
+      </button>
+      <button class="actionCard" onclick="openExistingTransfers()">
+        <strong>振替予約</strong>
+        未予約の振替を予約
+      </button>
+      <button class="actionCard" onclick="openReservedTransfers()">
+        <strong>予約済み振替</strong>
+        変更・キャンセル
+      </button>
+    </div>
+  </div>
+
+  <!-- 欠席登録 -->
+  <div id="absencePage" class="card hidden">
+    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
+    <h2 style="margin-top:0;">欠席登録</h2>
+
+    <div id="absenceStep1">
+      <div class="notice">欠席する生徒を選択してください。兄弟姉妹は複数選択できます。</div>
+      <div id="absenceStudentChoices"></div>
+      <div id="absenceStudentCount" class="countBar hidden">選択中：0名</div>
+      <button id="absenceStudentNext" class="primary hidden" onclick="continueAbsenceToDate()">次へ：欠席日を選ぶ</button>
+    </div>
+
+    <div id="absenceStep2" class="hidden">
+      <div class="notice">選択した生徒のうち、1人でもその日にレッスンがあり未登録なら表示します。</div>
+      <div id="absenceSelectedSummary" class="countBar"></div>
+      <div id="absenceLoading" class="loadingSmall">読み込み中...</div>
+      <div id="absenceDateList"></div>
+    </div>
+
+    <div id="absenceError" class="error hidden"></div>
+  </div>
+
+  <!-- 欠席登録後 -->
+  <div id="afterAbsencePage" class="card hidden">
+    <h2 style="margin-top:0;">欠席登録が完了しました</h2>
+    <div id="afterAbsenceMessage" class="notice"></div>
+    <h3>続けて振替しますか？</h3>
+    <div class="choiceActions">
+      <button class="primary" onclick="continueTransferAfterAbsence()">このまま振替する</button>
+      <button class="secondary" onclick="goHome()">今はまだ振替しない</button>
+    </div>
+  </div>
+
+  <!-- 既存の未予約振替一覧 -->
+  <div id="existingTransferPage" class="card hidden">
+    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
+    <h2 style="margin-top:0;">振替予約</h2>
+    <div id="existingTransferLoading" class="loadingSmall">読み込み中...</div>
+    <div id="existingTransferList"></div>
+    <div id="existingTransferActions" class="hidden">
+      <div id="existingTransferCount" class="countBar">選択中：0名</div>
+      <button class="primary" onclick="startExistingTransfer()">振替日を選ぶ</button>
+    </div>
+  </div>
+
+  <!-- 予約済み振替一覧 -->
+  <div id="reservedTransferPage" class="card hidden">
+    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
+    <h2 style="margin-top:0;">予約済み振替</h2>
+    <div class="notice">変更・キャンセルする予約を選択してください。複数選択すると、まとめて同じ日・クラスへ変更できます。</div>
+    <div id="reservedTransferLoading" class="loadingSmall">読み込み中...</div>
+    <div id="reservedTransferList"></div>
+    <div id="reservedTransferActions" class="hidden" style="margin-top:16px;">
+      <div id="reservedTransferCount" class="countBar">選択中：0件</div>
+      <div class="choiceActions">
+        <button class="primary" onclick="startReservedChange()">選択した予約を変更</button>
+        <button class="danger" onclick="cancelReservedSelection()">選択した予約をキャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 振替カレンダー -->
+  <div id="calendarPage" class="card hidden">
+    <a href="#" class="backLink" onclick="cancelTransferFlow();return false;">← 戻る</a>
+    <h2 style="margin-top:0;">振替日を選択</h2>
+    <div id="calendarPeople" class="notice"></div>
+    <div class="calendarHeader">
+      <button class="secondary" onclick="changeCalMonth(-1)">←前月</button>
+      <div id="calMonthTitle" class="calendarTitle"></div>
+      <button class="secondary" onclick="changeCalMonth(1)">翌月→</button>
+    </div>
+    <div class="calendarWeek"><div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div></div>
+    <div id="calGrid" class="calendarGrid"></div>
+    <div id="calClassArea" class="hidden" style="margin-top:18px;">
+      <h3 id="calClassDate" style="font-size:15px;"></h3>
+      <div id="calClassList"></div>
+    </div>
   </div>
 
   <div id="fatalError" class="card hidden">
@@ -56,28 +173,28 @@
 
   <div class="card">
     <div style="font-size:12px; font-weight:700; color:#64748b; margin-bottom:6px;">動作確認用ログ</div>
-    <pre id="debugLog" style="margin:0; padding:10px; background:#111827; color:#a7f3d0; font-size:11px; line-height:1.5; border-radius:8px; white-space:pre-wrap; word-break:break-all; max-height:320px; overflow:auto;"></pre>
+    <pre id="debugLog" style="margin:0; padding:10px; background:#111827; color:#a7f3d0; font-size:11px; line-height:1.5; border-radius:8px; white-space:pre-wrap; word-break:break-all; max-height:240px; overflow:auto;"></pre>
   </div>
 
 </div>
 
 <script>
 
-// ====================================
-// ここは、Cloudflare Worker（GASとの仲介役）のURLです。
-// GASを直接呼ぶとブラウザにブロックされることがあるため、
-// この仲介役を経由します。
-// ====================================
 const API_URL = "https://air-trick-proxy.h-m00yamaguchi.workers.dev";
 const LIFF_ID = "2011505032-SD9CVaDH";
 
 let currentIdToken = "";
 let parentToken = "";
+let homeData = null;
+
+// ------------------------------------
+// 共通
+// ------------------------------------
 
 function showPage(id) {
-  ["loadingPage", "linkPage", "homePage", "fatalError"].forEach(function(pageId) {
-    document.getElementById(pageId).classList.add("hidden");
-  });
+  ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
+   "existingTransferPage", "reservedTransferPage", "calendarPage", "fatalError"
+  ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
 
@@ -101,59 +218,60 @@ function fatal(message) {
   showPage("fatalError");
 }
 
-window.addEventListener("error", function(event) {
-  debugLog("window.error: " + (event.message || "不明なエラー"));
-});
-window.addEventListener("unhandledrejection", function(event) {
-  const reason = event.reason;
-  debugLog("unhandledrejection: " + (reason && reason.message ? reason.message : String(reason)));
-});
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 
-// GASのAPIを呼ぶ共通関数（Cloudflare Worker経由でfetch）
 async function callApi(action, params) {
   const url = API_URL + "?action=" + encodeURIComponent(action) +
-    "&payload=" + encodeURIComponent(JSON.stringify(params || {}));
-
+    "&payload=" + encodeURIComponent(JSON.stringify(Object.assign({ token: parentToken }, params || {})));
   const response = await fetch(url, { method: "GET" });
-
-  if (!response.ok) {
-    throw new Error("サーバーとの通信に失敗しました（ステータス " + response.status + "）。");
-  }
-
-  return response.json();
+  if (!response.ok) throw new Error("サーバーとの通信に失敗しました（ステータス " + response.status + "）。");
+  const res = await response.json();
+  if (!res.success) throw new Error(res.error);
+  return res.data;
 }
+
+// ------------------------------------
+// 初期化・連携
+// ------------------------------------
 
 async function init() {
   try {
+    setStatus("LINEのSDKを確認しています...");
+    await new Promise(function(resolve, reject) {
+      let waited = 0;
+      const timer = setInterval(function() {
+        if (typeof liff !== "undefined") { clearInterval(timer); resolve(); }
+        else { waited += 200; if (waited >= 8000) { clearInterval(timer); reject(new Error("LINEのSDK読み込みに失敗しました。")); } }
+      }, 200);
+    });
+
     setStatus("LIFFを初期化しています...");
     await liff.init({ liffId: LIFF_ID });
 
     setStatus("ログイン状態を確認しています...");
-    if (!liff.isLoggedIn()) {
-      setStatus("LINEログイン画面へ移動します...");
-      liff.login();
-      return;
-    }
+    if (!liff.isLoggedIn()) { setStatus("LINEログイン画面へ移動します..."); liff.login(); return; }
 
     setStatus("ログイン情報を取得しています...");
     currentIdToken = liff.getIDToken();
-    if (!currentIdToken) {
-      fatal("LINEのログイン情報を取得できませんでした。LIFFのScope設定に「openid」が含まれているか確認してください。");
-      return;
-    }
+    if (!currentIdToken) { fatal("LINEのログイン情報を取得できませんでした。"); return; }
 
     setStatus("サーバーに問い合わせています...");
-    const res = await callApi("parentLogin", { idToken: currentIdToken });
+    const url = API_URL + "?action=parentLogin&payload=" + encodeURIComponent(JSON.stringify({ idToken: currentIdToken }));
+    const response = await fetch(url, { method: "GET" });
+    const res = await response.json();
 
     if (!res.success) { fatal(res.error); return; }
 
     if (res.data.linked) {
       parentToken = res.data.token;
-      loadHome();
+      await loadHome();
     } else {
       showPage("linkPage");
     }
-
   } catch (error) {
     fatal("初期化に失敗しました：" + (error.message || String(error)));
   }
@@ -163,30 +281,18 @@ function submitLinkCode() {
   const code = document.getElementById("codeInput").value.trim();
   const errorBox = document.getElementById("linkError");
   errorBox.classList.add("hidden");
-
-  if (!/^\d{6}$/.test(code)) {
-    errorBox.textContent = "6桁の連携コードを入力してください。";
-    errorBox.classList.remove("hidden");
-    return;
-  }
+  if (!/^\d{6}$/.test(code)) { errorBox.textContent = "6桁の連携コードを入力してください。"; errorBox.classList.remove("hidden"); return; }
 
   liff.getProfile().then(async function(profile) {
     try {
-      const res = await callApi("linkByCode", {
-        idToken: currentIdToken,
-        code: code,
-        displayName: profile.displayName || ""
-      });
-
-      if (!res.success) {
-        errorBox.textContent = res.error;
-        errorBox.classList.remove("hidden");
-        return;
-      }
-
+      const url = API_URL + "?action=linkByCode&payload=" + encodeURIComponent(JSON.stringify({
+        idToken: currentIdToken, code: code, displayName: profile.displayName || ""
+      }));
+      const response = await fetch(url, { method: "GET" });
+      const res = await response.json();
+      if (!res.success) { errorBox.textContent = res.error; errorBox.classList.remove("hidden"); return; }
       parentToken = res.data.token;
-      loadHome();
-
+      await loadHome();
     } catch (error) {
       errorBox.textContent = error.message || String(error);
       errorBox.classList.remove("hidden");
@@ -197,32 +303,407 @@ function submitLinkCode() {
   });
 }
 
+// ------------------------------------
+// ホーム
+// ------------------------------------
+
 async function loadHome() {
   showPage("loadingPage");
   setStatus("お子さまの情報を読み込んでいます...");
-
   try {
-    const res = await callApi("getParentHome", { token: parentToken });
-    if (!res.success) { fatal(res.error); return; }
-
-    document.getElementById("homeGuardian").textContent = res.data.guardianName || "";
+    const data = await callApi("getParentHome", {});
+    homeData = data;
+    document.getElementById("homeGuardian").textContent = data.guardianName || "";
 
     const area = document.getElementById("homeChildren");
     area.innerHTML = "";
-
-    (res.data.students || []).forEach(function(student) {
+    (data.students || []).forEach(function(s) {
       const div = document.createElement("div");
       div.className = "childCard";
-      div.innerHTML =
-        "<div class='childName'>" + student.studentName + "</div>" +
-        "<div class='sub'>" + student.classId + "</div>";
+      div.innerHTML = "<div class='childName'>" + escapeHtml(s.studentName) + "</div><div class='sub'>" + escapeHtml(s.classId) + "</div>";
       area.appendChild(div);
     });
 
     showPage("homePage");
-
   } catch (error) {
     fatal(error.message || String(error));
+  }
+}
+
+function goHome() { loadHome(); }
+
+// ------------------------------------
+// 欠席登録
+// ------------------------------------
+
+let absenceSelectedStudents = {};
+let absenceLessonsData = null;
+let absenceSelectedDate = "";
+let lastRegisteredTransferRows = [];
+
+function openAbsence() {
+  absenceSelectedStudents = {};
+  absenceLessonsData = null;
+  absenceSelectedDate = "";
+  showPage("absencePage");
+  document.getElementById("absenceStep1").classList.remove("hidden");
+  document.getElementById("absenceStep2").classList.add("hidden");
+  document.getElementById("absenceError").classList.add("hidden");
+
+  const area = document.getElementById("absenceStudentChoices");
+  area.innerHTML = "";
+  (homeData.students || []).forEach(function(s) {
+    const html =
+      "<label class='transferRow lessonChoice'>" +
+        "<input type='checkbox' value='" + escapeHtml(s.studentId) + "' onchange='toggleAbsenceStudent(this)'>" +
+        "<div><div class='lessonName'>" + escapeHtml(s.studentName) + "</div>" +
+        "<div class='sub'>" + escapeHtml(s.classId) + "</div></div>" +
+      "</label>";
+    area.insertAdjacentHTML("beforeend", html);
+  });
+
+  updateAbsenceStudentUi();
+}
+
+function toggleAbsenceStudent(input) {
+  const id = String(input.value);
+  if (input.checked) absenceSelectedStudents[id] = true; else delete absenceSelectedStudents[id];
+  updateAbsenceStudentUi();
+}
+
+function updateAbsenceStudentUi() {
+  const count = Object.keys(absenceSelectedStudents).length;
+  const bar = document.getElementById("absenceStudentCount");
+  const btn = document.getElementById("absenceStudentNext");
+  bar.textContent = "選択中：" + count + "名";
+  bar.classList.toggle("hidden", count === 0);
+  btn.classList.toggle("hidden", count === 0);
+}
+
+async function continueAbsenceToDate() {
+  const ids = Object.keys(absenceSelectedStudents);
+  if (!ids.length) { alert("欠席する生徒を選択してください。"); return; }
+
+  document.getElementById("absenceStep1").classList.add("hidden");
+  document.getElementById("absenceStep2").classList.remove("hidden");
+  document.getElementById("absenceLoading").classList.remove("hidden");
+  document.getElementById("absenceDateList").innerHTML = "";
+
+  const names = (homeData.students || []).filter(s => absenceSelectedStudents[s.studentId]).map(s => s.studentName);
+  document.getElementById("absenceSelectedSummary").textContent = "欠席する生徒：" + names.join("・");
+
+  try {
+    const data = await callApi("getUpcomingDatesForMultiple", { studentIds: ids });
+    absenceLessonsData = data;
+    renderAbsenceDates();
+  } catch (error) {
+    document.getElementById("absenceLoading").classList.add("hidden");
+    fatal(error.message || String(error));
+  }
+}
+
+function renderAbsenceDates() {
+  document.getElementById("absenceLoading").classList.add("hidden");
+  const area = document.getElementById("absenceDateList");
+  area.innerHTML = "";
+
+  const dates = absenceLessonsData.dates || [];
+  if (!dates.length) { area.innerHTML = "<div class='empty'>選択した生徒について、新しく欠席登録できる今後のレッスン日はありません。</div>"; return; }
+
+  dates.forEach(function(d) {
+    const lines = Object.keys(absenceSelectedStudents).map(function(sid) {
+      const student = (homeData.students || []).find(s => s.studentId === sid);
+      const name = student ? student.studentName : sid;
+      const lesson = d.lessonsByStudent[sid];
+      if (!lesson) return escapeHtml(name) + "：この日はレッスンなし";
+      if (lesson.alreadyAbsent) return escapeHtml(name) + "：✓ 欠席登録済み";
+      return escapeHtml(name) + "：" + escapeHtml(lesson.classId) + " → 今回登録";
+    }).join("<br>");
+
+    const html =
+      "<label class='lessonRow lessonChoice'>" +
+        "<input type='radio' name='absDate' value='" + escapeHtml(d.date) + "' onchange='selectAbsenceDate(this.value)'>" +
+        "<div><div class='lessonName'>" + escapeHtml(d.displayDate) + "（" + escapeHtml(d.weekday) + "）</div>" +
+        "<div class='sub'>" + lines + "</div></div>" +
+      "</label>";
+    area.insertAdjacentHTML("beforeend", html);
+  });
+
+  const btn = document.createElement("button");
+  btn.className = "primary hidden";
+  btn.id = "absenceSubmitBtn";
+  btn.textContent = "この日を欠席登録";
+  btn.onclick = submitAbsence;
+  area.appendChild(btn);
+}
+
+function selectAbsenceDate(dateText) {
+  absenceSelectedDate = dateText;
+  document.getElementById("absenceSubmitBtn").classList.remove("hidden");
+}
+
+async function submitAbsence() {
+  const ids = Object.keys(absenceSelectedStudents);
+  const dateInfo = (absenceLessonsData.dates || []).find(d => d.date === absenceSelectedDate);
+  if (!dateInfo) return;
+
+  const selections = [];
+  const names = [];
+  ids.forEach(function(sid) {
+    const lesson = dateInfo.lessonsByStudent[sid];
+    if (lesson && !lesson.alreadyAbsent) {
+      selections.push({ studentId: sid, classId: lesson.classId, date: absenceSelectedDate });
+      const student = (homeData.students || []).find(s => s.studentId === sid);
+      names.push(student ? student.studentName : sid);
+    }
+  });
+
+  if (!selections.length) { alert("この日は選択した生徒全員がすでに欠席登録済み、またはレッスンがありません。"); return; }
+  if (!confirm("欠席日：" + absenceSelectedDate + "\n対象：" + names.join("・") + "\n\nこの内容で欠席登録しますか？")) return;
+
+  const errorBox = document.getElementById("absenceError");
+  errorBox.classList.add("hidden");
+
+  try {
+    const results = await callApi("registerAbsencesBatch", { selections: selections });
+    lastRegisteredTransferRows = results.filter(r => r.registered).map(r => r.transferRowNumber);
+
+    document.getElementById("afterAbsenceMessage").textContent = "欠席登録：" + results.filter(r => r.registered).length + "件";
+    showPage("afterAbsencePage");
+  } catch (error) {
+    errorBox.textContent = error.message || String(error);
+    errorBox.classList.remove("hidden");
+  }
+}
+
+function continueTransferAfterAbsence() {
+  if (!lastRegisteredTransferRows.length) { alert("今回登録した欠席に、現在振替可能なデータがありません。"); goHome(); return; }
+  startTransferFlow(lastRegisteredTransferRows, "new", []);
+}
+
+// ------------------------------------
+// 振替（未予約一覧・カレンダー・予約済み一覧）
+// ------------------------------------
+
+let selectedUnreservedRows = {};
+let reservedSelected = {};
+let transferFlowRows = [];
+let transferFlowMode = "new";
+let transferExcludeRows = [];
+let calYear = 0, calMonth = 0, calSelectedDate = "", lastCalData = null;
+
+async function loadTransferDashboard() {
+  return callApi("getTransferDashboard", {});
+}
+
+async function openExistingTransfers() {
+  selectedUnreservedRows = {};
+  showPage("existingTransferPage");
+  document.getElementById("existingTransferLoading").classList.remove("hidden");
+  document.getElementById("existingTransferList").innerHTML = "";
+  document.getElementById("existingTransferActions").classList.add("hidden");
+
+  try {
+    const data = await loadTransferDashboard();
+    document.getElementById("existingTransferLoading").classList.add("hidden");
+
+    const area = document.getElementById("existingTransferList");
+    if (!data.unreserved.length) { area.innerHTML = "<div class='empty'>現在、未予約の振替はありません。</div>"; return; }
+
+    area.innerHTML = "";
+    data.unreserved.forEach(function(item) {
+      const rowNums = item.rows.map(r => r.rowNumber);
+      const html =
+        "<label class='transferRow lessonChoice'>" +
+          "<input type='checkbox' onchange='toggleUnreserved(\"" + item.studentId + "\", this.checked, " + JSON.stringify(rowNums) + ")'>" +
+          "<div><div class='lessonName'>" + escapeHtml(item.studentName) + "</div>" +
+          "<div class='sub'>振替可能：" + item.availableCount + "件／最短期限：" + escapeHtml(item.earliestDeadline || "") + "</div></div>" +
+        "</label>";
+      area.insertAdjacentHTML("beforeend", html);
+    });
+  } catch (error) {
+    fatal(error.message || String(error));
+  }
+}
+
+function toggleUnreserved(studentId, checked, rowNumbers) {
+  if (checked) selectedUnreservedRows[studentId] = rowNumbers[0]; else delete selectedUnreservedRows[studentId];
+  const count = Object.keys(selectedUnreservedRows).length;
+  document.getElementById("existingTransferCount").textContent = "選択中：" + count + "名";
+  document.getElementById("existingTransferActions").classList.toggle("hidden", count === 0);
+}
+
+function startExistingTransfer() {
+  const rows = Object.values(selectedUnreservedRows);
+  if (!rows.length) { alert("生徒を選択してください。"); return; }
+  startTransferFlow(rows, "new", []);
+}
+
+async function openReservedTransfers() {
+  reservedSelected = {};
+  showPage("reservedTransferPage");
+  document.getElementById("reservedTransferLoading").classList.remove("hidden");
+  document.getElementById("reservedTransferList").innerHTML = "";
+  document.getElementById("reservedTransferActions").classList.add("hidden");
+
+  try {
+    const data = await loadTransferDashboard();
+    document.getElementById("reservedTransferLoading").classList.add("hidden");
+
+    const area = document.getElementById("reservedTransferList");
+    if (!data.reserved.length) { area.innerHTML = "<div class='empty'>現在、予約済みの振替はありません。</div>"; return; }
+
+    area.innerHTML = "";
+    data.reserved.forEach(function(item) {
+      const html =
+        "<label class='transferRow lessonChoice'>" +
+          "<input type='checkbox' value='" + item.rowNumber + "' onchange='toggleReserved(this)'>" +
+          "<div><div class='lessonName'>" + escapeHtml(item.studentName) + "</div>" +
+          "<div class='sub'>振替日：" + escapeHtml(item.transferDate) + "　" + escapeHtml(item.classId) +
+          "<br>期限：" + escapeHtml(item.deadline || "") + "</div></div>" +
+        "</label>";
+      area.insertAdjacentHTML("beforeend", html);
+    });
+  } catch (error) {
+    fatal(error.message || String(error));
+  }
+}
+
+function toggleReserved(input) {
+  const row = String(input.value);
+  if (input.checked) reservedSelected[row] = true; else delete reservedSelected[row];
+  const count = Object.keys(reservedSelected).length;
+  document.getElementById("reservedTransferCount").textContent = "選択中：" + count + "件";
+  document.getElementById("reservedTransferActions").classList.toggle("hidden", count === 0);
+}
+
+function getReservedRows_() { return Object.keys(reservedSelected).map(Number); }
+
+function startReservedChange() {
+  const rows = getReservedRows_();
+  if (!rows.length) { alert("変更する予約を選択してください。"); return; }
+  startTransferFlow(rows, "change", rows);
+}
+
+async function cancelReservedSelection() {
+  const rows = getReservedRows_();
+  if (!rows.length) { alert("キャンセルする予約を選択してください。"); return; }
+  if (!confirm("選択した" + rows.length + "件の振替予約をキャンセルします。よろしいですか？")) return;
+
+  try {
+    await callApi("cancelTransfer", { rowNumbers: rows });
+    alert("キャンセルしました。");
+    openReservedTransfers();
+  } catch (error) {
+    alert(error.message || String(error));
+  }
+}
+
+// ------------------------------------
+// カレンダー（新規予約・変更共通）
+// ------------------------------------
+
+function startTransferFlow(rowNumbers, mode, excludeRows) {
+  transferFlowRows = rowNumbers;
+  transferFlowMode = mode;
+  transferExcludeRows = excludeRows || [];
+  calSelectedDate = "";
+
+  const now = new Date();
+  calYear = now.getFullYear();
+  calMonth = now.getMonth() + 1;
+
+  showPage("calendarPage");
+  document.getElementById("calendarPeople").textContent = "対象：" + rowNumbers.length + "名　※この人数分の空席がある日・クラスだけ選択できます";
+  document.getElementById("calClassArea").classList.add("hidden");
+  loadCalMonth();
+}
+
+function cancelTransferFlow() {
+  if (transferFlowMode === "change") { openReservedTransfers(); }
+  else { openExistingTransfers(); }
+}
+
+function changeCalMonth(diff) {
+  const d = new Date(calYear, calMonth - 1 + diff, 1);
+  calYear = d.getFullYear(); calMonth = d.getMonth() + 1;
+  calSelectedDate = "";
+  document.getElementById("calClassArea").classList.add("hidden");
+  loadCalMonth();
+}
+
+async function loadCalMonth() {
+  document.getElementById("calMonthTitle").textContent = calYear + "年" + calMonth + "月";
+  document.getElementById("calGrid").innerHTML = "<div class='empty'>読み込み中...</div>";
+
+  try {
+    const data = await callApi("getTransferCalendarMonth", {
+      year: calYear, month: calMonth, rowNumbers: transferFlowRows, excludeRowNumbers: transferExcludeRows
+    });
+    lastCalData = data;
+    renderCalGrid();
+  } catch (error) {
+    fatal(error.message || String(error));
+  }
+}
+
+function renderCalGrid() {
+  const grid = document.getElementById("calGrid");
+  grid.innerHTML = "";
+
+  const first = new Date(calYear, calMonth - 1, 1).getDay();
+  for (let i = 0; i < first; i++) { grid.insertAdjacentHTML("beforeend", "<div></div>"); }
+
+  lastCalData.days.forEach(function(d) {
+    const cls = "calendarDay" + (d.available ? "" : " disabled") + (calSelectedDate === d.date ? " selected" : "");
+    const inner = "<div class='dayNumber'>" + d.day + "</div><div class='daySub'>" + (d.available ? "予約可" : escapeHtml(d.reason || "")) + "</div>";
+    if (d.available) {
+      grid.insertAdjacentHTML("beforeend", "<button type='button' class='" + cls + "' onclick=\"selectCalDate('" + d.date + "')\">" + inner + "</button>");
+    } else {
+      grid.insertAdjacentHTML("beforeend", "<div class='" + cls + "'>" + inner + "</div>");
+    }
+  });
+}
+
+async function selectCalDate(dateText) {
+  calSelectedDate = dateText;
+  renderCalGrid();
+
+  document.getElementById("calClassArea").classList.remove("hidden");
+  document.getElementById("calClassDate").textContent = dateText + " の予約可能クラス";
+  document.getElementById("calClassList").innerHTML = "<div class='empty'>読み込み中...</div>";
+
+  try {
+    const classes = await callApi("getAvailableTransferClasses", {
+      dateText: dateText, rowNumbers: transferFlowRows, excludeRowNumbers: transferExcludeRows
+    });
+    const area = document.getElementById("calClassList");
+    area.innerHTML = "";
+    if (!classes.length) { area.innerHTML = "<div class='empty'>予約可能なクラスはありません。</div>"; return; }
+    classes.forEach(function(c) {
+      const html = "<button type='button' class='classRow' style='width:100%;text-align:left;background:white;cursor:pointer;' onclick=\"confirmCalReservation('" + c.classId + "')\">" +
+        "<div class='lessonName'>" + escapeHtml(c.start) + "　" + escapeHtml(c.classId) + "</div>" +
+        "<div class='sub'>" + escapeHtml(c.start) + "〜" + escapeHtml(c.end) + "／残席" + c.remaining + "</div></button>";
+      area.insertAdjacentHTML("beforeend", html);
+    });
+  } catch (error) {
+    fatal(error.message || String(error));
+  }
+}
+
+async function confirmCalReservation(classId) {
+  const isChange = transferFlowMode === "change";
+  if (!confirm(calSelectedDate + "\n" + classId + "\n\nこの内容で振替を" + (isChange ? "変更" : "予約") + "しますか？")) return;
+
+  try {
+    await callApi(isChange ? "changeTransfer" : "reserveTransfer", {
+      rowNumbers: transferFlowRows, dateText: calSelectedDate, classId: classId
+    });
+    alert((isChange ? "振替予約を変更しました。" : "振替予約が完了しました。"));
+    lastRegisteredTransferRows = [];
+    goHome();
+  } catch (error) {
+    alert(error.message || String(error));
   }
 }
 
