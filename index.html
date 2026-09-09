@@ -513,10 +513,14 @@ async function openExistingTransfers() {
     area.innerHTML = "";
     data.unreserved.forEach(function(item) {
       const rowNums = item.rows.map(r => r.rowNumber);
+      const lessonInfo = item.rows.map(function(r) {
+        return escapeHtml(r.absenceDate) + "（" + escapeHtml(r.absenceClassId) + "）";
+      }).join("、");
       const html =
         "<label class='transferRow lessonChoice'>" +
           "<input type='checkbox' onchange='toggleUnreserved(\"" + item.studentId + "\", this.checked, " + JSON.stringify(rowNums) + ")'>" +
           "<div><div class='lessonName'>" + escapeHtml(item.studentName) + "</div>" +
+          "<div class='sub'>元のレッスン：" + lessonInfo + "</div>" +
           "<div class='sub'>振替可能：" + item.availableCount + "件／最短期限：" + escapeHtml(item.earliestDeadline || "") + "</div></div>" +
         "</label>";
       area.insertAdjacentHTML("beforeend", html);
@@ -559,6 +563,7 @@ async function openReservedTransfers() {
         "<label class='transferRow lessonChoice'>" +
           "<input type='checkbox' value='" + item.rowNumber + "' onchange='toggleReserved(this)'>" +
           "<div><div class='lessonName'>" + escapeHtml(item.studentName) + "</div>" +
+          "<div class='sub'>元のレッスン：" + escapeHtml(item.absenceDate) + "（" + escapeHtml(item.absenceClassId) + "）</div>" +
           "<div class='sub'>振替日：" + escapeHtml(item.transferDate) + "　" + escapeHtml(item.classId) +
           "<br>期限：" + escapeHtml(item.deadline || "") + "</div></div>" +
         "</label>";
