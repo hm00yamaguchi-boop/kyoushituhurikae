@@ -12,55 +12,34 @@
 </head>
 <body>
 
-<h2>GASとの通信テスト（JSONP方式・LINE不要）</h2>
-<p>このページ単体で、GASサーバーへの通信ができるかだけを確認します。</p>
+<h2>Cloudflare Worker経由の通信テスト</h2>
+<p>このページ単体で、Worker→GASへの通信ができるかだけを確認します。</p>
 
 <button onclick="runTest()">テスト実行</button>
 
 <pre id="log">まだ実行していません。</pre>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbwmx321DKDnWy6ZA5gdSfXHyIOfNbfOQ2pwy2UjDcwvjm2xexPQyrLvWCw2PuGryRMoKQ/exec";
+const API_URL = "https://air-trick-proxy.h-m00yamaguchi.workers.dev";
 
 function log(text) {
   document.getElementById("log").textContent += "\n" + text;
 }
 
-function runTest() {
+async function runTest() {
   document.getElementById("log").textContent = "開始...";
   log("URL: " + API_URL);
 
-  const callbackName = "jsonp_test_cb";
-
-  const timeoutId = setTimeout(function() {
-    log("タイムアウト（15秒応答なし）");
-    cleanup();
-  }, 15000);
-
-  function cleanup() {
-    clearTimeout(timeoutId);
-    delete window[callbackName];
-    if (script.parentNode) script.parentNode.removeChild(script);
+  try {
+    const url = API_URL + "?action=getParentHome&payload=" + encodeURIComponent(JSON.stringify({ token: "test" }));
+    log("fetch開始...");
+    const response = await fetch(url, { method: "GET" });
+    log("fetch成功。ステータス: " + response.status);
+    const text = await response.text();
+    log("応答本文: " + text.slice(0, 300));
+  } catch (error) {
+    log("fetch失敗: " + (error && error.message ? error.message : String(error)));
   }
-
-  window[callbackName] = function(data) {
-    log("成功！応答: " + JSON.stringify(data));
-    cleanup();
-  };
-
-  const url = API_URL + "?action=getParentHome&payload=" +
-    encodeURIComponent(JSON.stringify({ token: "test" })) +
-    "&callback=" + callbackName;
-
-  log("script読み込み開始...");
-
-  const script = document.createElement("script");
-  script.src = url;
-  script.onerror = function() {
-    log("script読み込み失敗（onerror発火）");
-    cleanup();
-  };
-  document.body.appendChild(script);
 }
 </script>
 
