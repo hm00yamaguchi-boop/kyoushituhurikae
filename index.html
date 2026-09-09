@@ -108,18 +108,41 @@ window.addEventListener("unhandledrejection", function(event) {
   debugLog("unhandledrejection: " + (reason && reason.message ? reason.message : String(reason)));
 });
 
-// GASのAPIを呼ぶ共通関数（GETリクエストで直接呼び出す）
-async function callApi(action, params) {
-  const url = API_URL + "?action=" + encodeURIComponent(action) +
-    "&payload=" + encodeURIComponent(JSON.stringify(params || {}));
+// GASのAPIを呼ぶ共通関数（JSONP方式：<script>タグ経由で読み込む。
+// CORSの制限を受けないため、通常のfetchより確実に動作する）
+function callApi(action, params) {
+  return new Promise(function(resolve, reject) {
+    const callbackName = "jsonp_cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
 
-  const response = await fetch(url, { method: "GET" });
+    const timeoutId = setTimeout(function() {
+      cleanup();
+      reject(new Error("サーバーからの応答がタイムアウトしました。"));
+    }, 15000);
 
-  if (!response.ok) {
-    throw new Error("サーバーとの通信に失敗しました（ステータス " + response.status + "）。");
-  }
+    function cleanup() {
+      clearTimeout(timeoutId);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
 
-  return response.json();
+    window[callbackName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+
+    const url = API_URL +
+      "?action=" + encodeURIComponent(action) +
+      "&payload=" + encodeURIComponent(JSON.stringify(params || {})) +
+      "&callback=" + callbackName;
+
+    const script = document.createElement("script");
+    script.src = url;
+    script.onerror = function() {
+      cleanup();
+      reject(new Error("サーバーへの接続に失敗しました。"));
+    };
+    document.body.appendChild(script);
+  });
 }
 
 async function init() {
