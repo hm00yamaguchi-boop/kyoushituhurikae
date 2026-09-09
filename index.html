@@ -64,10 +64,11 @@
 <script>
 
 // ====================================
-// ここを、GASの「保護者用デプロイ」のURLに書き換えてください
-// （末尾は /exec のままでOKです。?page=parent は付けません）
+// ここは、Cloudflare Worker（GASとの仲介役）のURLです。
+// GASを直接呼ぶとブラウザにブロックされることがあるため、
+// この仲介役を経由します。
 // ====================================
-const API_URL = "https://script.google.com/macros/s/AKfycbwmx321DKDnWy6ZA5gdSfXHyIOfNbfOQ2pwy2UjDcwvjm2xexPQyrLvWCw2PuGryRMoKQ/exec";
+const API_URL = "https://air-trick-proxy.h-m00yamaguchi.workers.dev";
 const LIFF_ID = "2011505032-SD9CVaDH";
 
 let currentIdToken = "";
@@ -108,41 +109,18 @@ window.addEventListener("unhandledrejection", function(event) {
   debugLog("unhandledrejection: " + (reason && reason.message ? reason.message : String(reason)));
 });
 
-// GASのAPIを呼ぶ共通関数（JSONP方式：<script>タグ経由で読み込む。
-// CORSの制限を受けないため、通常のfetchより確実に動作する）
-function callApi(action, params) {
-  return new Promise(function(resolve, reject) {
-    const callbackName = "jsonp_cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+// GASのAPIを呼ぶ共通関数（Cloudflare Worker経由でfetch）
+async function callApi(action, params) {
+  const url = API_URL + "?action=" + encodeURIComponent(action) +
+    "&payload=" + encodeURIComponent(JSON.stringify(params || {}));
 
-    const timeoutId = setTimeout(function() {
-      cleanup();
-      reject(new Error("サーバーからの応答がタイムアウトしました。"));
-    }, 15000);
+  const response = await fetch(url, { method: "GET" });
 
-    function cleanup() {
-      clearTimeout(timeoutId);
-      delete window[callbackName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-    }
+  if (!response.ok) {
+    throw new Error("サーバーとの通信に失敗しました（ステータス " + response.status + "）。");
+  }
 
-    window[callbackName] = function(data) {
-      cleanup();
-      resolve(data);
-    };
-
-    const url = API_URL +
-      "?action=" + encodeURIComponent(action) +
-      "&payload=" + encodeURIComponent(JSON.stringify(params || {})) +
-      "&callback=" + callbackName;
-
-    const script = document.createElement("script");
-    script.src = url;
-    script.onerror = function() {
-      cleanup();
-      reject(new Error("サーバーへの接続に失敗しました。"));
-    };
-    document.body.appendChild(script);
-  });
+  return response.json();
 }
 
 async function init() {
