@@ -86,6 +86,17 @@
         変更・キャンセル
       </button>
     </div>
+
+    <div class="actionGrid" style="margin-top:12px;">
+      <button class="actionCard" id="calCurrentBtn" onclick="openCalendarImage('current')">
+        <strong id="calCurrentLabel">今月のカレンダー</strong>
+        <span id="calCurrentSub">読み込み中...</span>
+      </button>
+      <button class="actionCard" id="calNextBtn" onclick="openCalendarImage('next')">
+        <strong id="calNextLabel">来月のカレンダー</strong>
+        <span id="calNextSub">読み込み中...</span>
+      </button>
+    </div>
   </div>
 
   <!-- 欠席登録 -->
@@ -167,6 +178,13 @@
     </div>
   </div>
 
+  <!-- カレンダー画像表示 -->
+  <div id="calendarImagePage" class="card hidden">
+    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
+    <h2 style="margin-top:0;" id="calendarImageTitle">カレンダー</h2>
+    <div id="calendarImageBody"></div>
+  </div>
+
   <div id="fatalError" class="card hidden">
     <div class="error" id="fatalErrorText"></div>
   </div>
@@ -188,7 +206,7 @@ let homeData = null;
 
 function showPage(id) {
   ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
-   "existingTransferPage", "reservedTransferPage", "calendarPage", "fatalError"
+   "existingTransferPage", "reservedTransferPage", "calendarPage", "calendarImagePage", "fatalError"
   ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
@@ -320,12 +338,46 @@ async function loadHome() {
     });
 
     showPage("homePage");
+    loadCalendarButtons();
   } catch (error) {
     fatal(error.message || String(error));
   }
 }
 
 function goHome() { loadHome(); }
+
+// ------------------------------------
+// カレンダー画像
+// ------------------------------------
+
+let calendarImagesData = null;
+
+async function loadCalendarButtons() {
+  try {
+    calendarImagesData = await callApi("getCalendarImages", {});
+    renderCalendarButton("current", calendarImagesData.current);
+    renderCalendarButton("next", calendarImagesData.next);
+  } catch (error) {
+    // 取得に失敗してもホーム画面自体は使えるようにする（ボタンは初期表示のまま）
+  }
+}
+
+function renderCalendarButton(target, info) {
+  const label = document.getElementById(target === "current" ? "calCurrentLabel" : "calNextLabel");
+  const sub = document.getElementById(target === "current" ? "calCurrentSub" : "calNextSub");
+  label.textContent = info.displayMonth + "のカレンダー";
+  sub.textContent = info.registered ? "画像を見る" : "まだ準備中です";
+}
+
+function openCalendarImage(target) {
+  const info = calendarImagesData && calendarImagesData[target];
+  if (!info || !info.registered) { alert("この月のカレンダー画像はまだ準備中です。"); return; }
+
+  document.getElementById("calendarImageTitle").textContent = info.displayMonth + "のカレンダー";
+  document.getElementById("calendarImageBody").innerHTML =
+    "<img src='" + escapeHtml(info.url) + "' style='max-width:100%;border-radius:10px;'>";
+  showPage("calendarImagePage");
+}
 
 // ------------------------------------
 // 欠席登録
