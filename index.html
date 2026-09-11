@@ -72,6 +72,8 @@
     <h2 style="margin-top:0;"><span id="homeGuardian"></span> 様</h2>
     <div id="homeChildren"></div>
 
+    <div id="calendarButtons" class="actionGrid"></div>
+
     <div class="actionGrid">
       <button class="actionCard" onclick="openAbsence()">
         <strong>欠席を登録</strong>
@@ -84,17 +86,6 @@
       <button class="actionCard" onclick="openReservedTransfers()">
         <strong>予約済み振替</strong>
         変更・キャンセル
-      </button>
-    </div>
-
-    <div class="actionGrid" style="margin-top:12px;">
-      <button class="actionCard" id="calCurrentBtn" onclick="openCalendarImage('current')">
-        <strong id="calCurrentLabel">今月のカレンダー</strong>
-        <span id="calCurrentSub">読み込み中...</span>
-      </button>
-      <button class="actionCard" id="calNextBtn" onclick="openCalendarImage('next')">
-        <strong id="calNextLabel">来月のカレンダー</strong>
-        <span id="calNextSub">読み込み中...</span>
       </button>
     </div>
   </div>
@@ -141,7 +132,21 @@
     <div id="existingTransferActions" class="hidden">
       <div id="existingTransferCount" class="countBar">選択中：0名</div>
       <button class="primary" onclick="startExistingTransfer()">振替日を選ぶ</button>
+      <button class="secondary" style="width:100%;margin-top:10px;" onclick="openParkUseConfirm()">パークを利用する</button>
     </div>
+  </div>
+
+  <!-- パーク利用の確認 -->
+  <div id="parkUsePage" class="card hidden">
+    <a href="#" class="backLink" onclick="openExistingTransfers();return false;">← 戻る</a>
+    <h2 style="margin-top:0;">パーク利用</h2>
+    <div class="warning">
+      <strong>スタッフの方へこの画面を見せてから、「使用する」ボタンを押してください。</strong><br>
+      押すとその場で振替1回分がパーク利用として消化されます。あとから取り消すことはできません。
+    </div>
+    <div id="parkUseSummary" style="margin-top:14px;"></div>
+    <button class="primary" onclick="confirmParkUse()">使用する</button>
+    <div id="parkUseError" class="error hidden"></div>
   </div>
 
   <!-- 予約済み振替一覧 -->
@@ -178,13 +183,6 @@
     </div>
   </div>
 
-  <!-- カレンダー画像表示 -->
-  <div id="calendarImagePage" class="card hidden">
-    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
-    <h2 style="margin-top:0;" id="calendarImageTitle">カレンダー</h2>
-    <div id="calendarImageBody"></div>
-  </div>
-
   <div id="fatalError" class="card hidden">
     <div class="error" id="fatalErrorText"></div>
   </div>
@@ -206,7 +204,7 @@ let homeData = null;
 
 function showPage(id) {
   ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
-   "existingTransferPage", "reservedTransferPage", "calendarPage", "calendarImagePage", "fatalError"
+   "existingTransferPage", "reservedTransferPage", "calendarPage", "parkUsePage", "fatalError"
   ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
@@ -344,40 +342,26 @@ async function loadHome() {
   }
 }
 
-function goHome() { loadHome(); }
-
-// ------------------------------------
-// カレンダー画像
-// ------------------------------------
-
-let calendarImagesData = null;
-
 async function loadCalendarButtons() {
+  const area = document.getElementById("calendarButtons");
+  area.innerHTML = "";
   try {
-    calendarImagesData = await callApi("getCalendarImages", {});
-    renderCalendarButton("current", calendarImagesData.current);
-    renderCalendarButton("next", calendarImagesData.next);
+    const data = await callApi("getCalendarImages", {});
+    [data.current, data.next].forEach(function(month) {
+      if (!month.url) return; // 未登録の月はボタン自体を出さない
+      const btn = document.createElement("button");
+      btn.className = "actionCard";
+      btn.innerHTML = "<strong>" + escapeHtml(month.label) + "カレンダー</strong>タップして画像を見る";
+      btn.onclick = function() { window.open(month.url, "_blank"); };
+      area.appendChild(btn);
+    });
   } catch (error) {
-    // 取得に失敗してもホーム画面自体は使えるようにする（ボタンは初期表示のまま）
+    // カレンダー画像の取得に失敗しても、ホーム画面自体は使えるようにする
+    debugLog("カレンダー画像の取得に失敗: " + (error.message || String(error)));
   }
 }
 
-function renderCalendarButton(target, info) {
-  const label = document.getElementById(target === "current" ? "calCurrentLabel" : "calNextLabel");
-  const sub = document.getElementById(target === "current" ? "calCurrentSub" : "calNextSub");
-  label.textContent = info.displayMonth + "のカレンダー";
-  sub.textContent = info.registered ? "画像を見る" : "まだ準備中です";
-}
-
-function openCalendarImage(target) {
-  const info = calendarImagesData && calendarImagesData[target];
-  if (!info || !info.registered) { alert("この月のカレンダー画像はまだ準備中です。"); return; }
-
-  document.getElementById("calendarImageTitle").textContent = info.displayMonth + "のカレンダー";
-  document.getElementById("calendarImageBody").innerHTML =
-    "<img src='" + escapeHtml(info.url) + "' style='max-width:100%;border-radius:10px;'>";
-  showPage("calendarImagePage");
-}
+function goHome() { loadHome(); }
 
 // ------------------------------------
 // 欠席登録
@@ -534,6 +518,7 @@ function continueTransferAfterAbsence() {
 
 let selectedUnreservedRows = {};
 let reservedSelected = {};
+let parkUseRows = [];
 let transferFlowRows = [];
 let transferFlowMode = "new";
 let transferExcludeRows = [];
@@ -588,6 +573,40 @@ function startExistingTransfer() {
   const rows = Object.values(selectedUnreservedRows);
   if (!rows.length) { alert("生徒を選択してください。"); return; }
   startTransferFlow(rows, "new", []);
+}
+
+function openParkUseConfirm() {
+  const rows = Object.values(selectedUnreservedRows);
+  if (!rows.length) { alert("生徒を選択してください。"); return; }
+
+  parkUseRows = rows;
+
+  const names = Object.keys(selectedUnreservedRows).map(function(sid) {
+    const student = (homeData.students || []).find(s => s.studentId === sid);
+    return student ? student.studentName : sid;
+  });
+
+  document.getElementById("parkUseSummary").innerHTML =
+    "<div class='transferRow'><div class='lessonName'>" + names.map(escapeHtml).join("・") + "</div>" +
+    "<div class='sub'>対象：" + rows.length + "件の振替</div></div>";
+  document.getElementById("parkUseError").classList.add("hidden");
+
+  showPage("parkUsePage");
+}
+
+async function confirmParkUse() {
+  const errorBox = document.getElementById("parkUseError");
+  errorBox.classList.add("hidden");
+
+  try {
+    await callApi("markParkUsed", { rowNumbers: parkUseRows });
+    alert("パーク利用として処理しました。");
+    parkUseRows = [];
+    goHome();
+  } catch (error) {
+    errorBox.textContent = error.message || String(error);
+    errorBox.classList.remove("hidden");
+  }
 }
 
 async function openReservedTransfers() {
