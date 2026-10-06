@@ -344,7 +344,13 @@ async function loadHome() {
   }
 }
 
-function goHome() { loadHome(); }
+// 戻るボタン：ホームの内容（お子さまの名前など）は他の画面の操作では変わらないため、
+// 読み込み済みのものをそのまま表示する（毎回の読み込みをなくす）。
+function goHome() {
+  if (!homeData) { loadHome(); return; }
+  showPage("homePage");
+  window.scrollTo(0, 0);
+}
 
 // ------------------------------------
 // カレンダー画像
@@ -352,7 +358,20 @@ function goHome() { loadHome(); }
 
 let calendarImagesData = null;
 
+// 「10月のカレンダー」のような表示用の文字。左＝今月、右＝来月。
+function calendarMonthLabel(target, info) {
+  const text = info ? String(info.displayMonth || info.label || "") : "";
+  const match = text.match(/(\d{1,2})月/);
+  if (match) return Number(match[1]) + "月のカレンダー";
+  const d = new Date();
+  const month = (d.getMonth() + (target === "current" ? 0 : 1)) % 12 + 1;
+  return month + "月のカレンダー";
+}
+
 async function loadCalendarButtons() {
+  // サーバーの応答を待つ間も、月の名前は先に表示しておく
+  document.getElementById("calCurrentLabel").textContent = calendarMonthLabel("current", null);
+  document.getElementById("calNextLabel").textContent = calendarMonthLabel("next", null);
   try {
     calendarImagesData = await callApi("getCalendarImages", {});
     renderCalendarButton("current", calendarImagesData.current);
@@ -365,7 +384,7 @@ async function loadCalendarButtons() {
 function renderCalendarButton(target, info) {
   const label = document.getElementById(target === "current" ? "calCurrentLabel" : "calNextLabel");
   const sub = document.getElementById(target === "current" ? "calCurrentSub" : "calNextSub");
-  label.textContent = info.displayMonth + "のカレンダー";
+  label.textContent = calendarMonthLabel(target, info);
   sub.textContent = info.registered ? "画像を見る" : "まだ準備中です";
 }
 
@@ -373,7 +392,7 @@ function openCalendarImage(target) {
   const info = calendarImagesData && calendarImagesData[target];
   if (!info || !info.registered) { alert("この月のカレンダー画像はまだ準備中です。"); return; }
 
-  document.getElementById("calendarImageTitle").textContent = info.displayMonth + "のカレンダー";
+  document.getElementById("calendarImageTitle").textContent = calendarMonthLabel(target, info);
   document.getElementById("calendarImageBody").innerHTML =
     "<img src='" + escapeHtml(info.url) + "' style='max-width:100%;border-radius:10px;'>";
   showPage("calendarImagePage");
