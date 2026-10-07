@@ -87,15 +87,10 @@
       </button>
     </div>
 
-    <div class="actionGrid" style="margin-top:12px;">
-      <button class="actionCard" id="calCurrentBtn" onclick="openCalendarImage('current')">
-        <strong id="calCurrentLabel">今月のカレンダー</strong>
-        <span id="calCurrentSub">読み込み中...</span>
-      </button>
-      <button class="actionCard" id="calNextBtn" onclick="openCalendarImage('next')">
-        <strong id="calNextLabel">来月のカレンダー</strong>
-        <span id="calNextSub">読み込み中...</span>
-      </button>
+    <!-- 教室カレンダー（今月・来月のみ。PCの営業カレンダー生成ツールの publish.py が毎朝自動更新） -->
+    <div style="margin-top:20px;">
+      <h3 style="font-size:15px; margin:0 0 10px;">教室カレンダー</h3>
+      <div class="biz-calendar" data-title="教室カレンダー" data-caution="※レッスン日は、／変更になる場合があります。／変更は公式LINEで／お知らせします。"></div>
     </div>
   </div>
 
@@ -178,12 +173,6 @@
     </div>
   </div>
 
-  <!-- カレンダー画像表示 -->
-  <div id="calendarImagePage" class="card hidden">
-    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
-    <h2 style="margin-top:0;" id="calendarImageTitle">カレンダー</h2>
-    <div id="calendarImageBody"></div>
-  </div>
 
   <div id="fatalError" class="card hidden">
     <div class="error" id="fatalErrorText"></div>
@@ -206,7 +195,7 @@ let homeData = null;
 
 function showPage(id) {
   ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
-   "existingTransferPage", "reservedTransferPage", "calendarPage", "calendarImagePage", "fatalError"
+   "existingTransferPage", "reservedTransferPage", "calendarPage", "fatalError"
   ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
@@ -338,7 +327,6 @@ async function loadHome() {
     });
 
     showPage("homePage");
-    loadCalendarButtons();
   } catch (error) {
     fatal(error.message || String(error));
   }
@@ -350,52 +338,6 @@ function goHome() {
   if (!homeData) { loadHome(); return; }
   showPage("homePage");
   window.scrollTo(0, 0);
-}
-
-// ------------------------------------
-// カレンダー画像
-// ------------------------------------
-
-let calendarImagesData = null;
-
-// 「10月のカレンダー」のような表示用の文字。左＝今月、右＝来月。
-function calendarMonthLabel(target, info) {
-  const text = info ? String(info.displayMonth || info.label || "") : "";
-  const match = text.match(/(\d{1,2})月/);
-  if (match) return Number(match[1]) + "月のカレンダー";
-  const d = new Date();
-  const month = (d.getMonth() + (target === "current" ? 0 : 1)) % 12 + 1;
-  return month + "月のカレンダー";
-}
-
-async function loadCalendarButtons() {
-  // サーバーの応答を待つ間も、月の名前は先に表示しておく
-  document.getElementById("calCurrentLabel").textContent = calendarMonthLabel("current", null);
-  document.getElementById("calNextLabel").textContent = calendarMonthLabel("next", null);
-  try {
-    calendarImagesData = await callApi("getCalendarImages", {});
-    renderCalendarButton("current", calendarImagesData.current);
-    renderCalendarButton("next", calendarImagesData.next);
-  } catch (error) {
-    // 取得に失敗してもホーム画面自体は使えるようにする（ボタンは初期表示のまま）
-  }
-}
-
-function renderCalendarButton(target, info) {
-  const label = document.getElementById(target === "current" ? "calCurrentLabel" : "calNextLabel");
-  const sub = document.getElementById(target === "current" ? "calCurrentSub" : "calNextSub");
-  label.textContent = calendarMonthLabel(target, info);
-  sub.textContent = info.registered ? "画像を見る" : "まだ準備中です";
-}
-
-function openCalendarImage(target) {
-  const info = calendarImagesData && calendarImagesData[target];
-  if (!info || !info.registered) { alert("この月のカレンダー画像はまだ準備中です。"); return; }
-
-  document.getElementById("calendarImageTitle").textContent = calendarMonthLabel(target, info);
-  document.getElementById("calendarImageBody").innerHTML =
-    "<img src='" + escapeHtml(info.url) + "' style='max-width:100%;border-radius:10px;'>";
-  showPage("calendarImagePage");
 }
 
 // ------------------------------------
@@ -789,5 +731,6 @@ init();
 
 </script>
 
+<script src="calendar/embed.js" defer></script>
 </body>
 </html>
