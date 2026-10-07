@@ -1,7 +1,7 @@
 /*
  * 営業カレンダーの埋め込み表示
  * 使い方：表示したい場所に <div class="biz-calendar"></div> を置き、
- *         <script src="https://hm00yamaguchi-boop.github.io/airtrick-members/calendar/embed.js" defer></script> を読み込む
+ *         <script src="https://air-trick.github.io/calendar/embed.js" defer></script> を読み込む
  * 画像と months.json は publish.py が自動で更新します（このファイルも publish.py が上書きします）。
  */
 (function () {
