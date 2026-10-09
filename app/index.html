@@ -44,6 +44,19 @@
   .dayNumber { font-weight:900; font-size:13px; }
   .daySub { font-size:9px; margin-top:3px; line-height:1.3; }
   .loadingSmall, .empty { text-align:center; color:#64748b; padding:20px 10px; font-size:13px; }
+  .actionCard { word-break:keep-all; overflow-wrap:anywhere; }
+  .rules { margin-top:22px; padding-top:16px; border-top:1px solid #e2e8f0; font-size:14px; line-height:1.7; }
+  .rules h3 { margin:0 0 6px; font-size:16px; }
+  .rules h4 { margin:14px 0 2px; font-size:14px; color:#203044; }
+  .rules p { margin:4px 0; }
+  select { width:100%; padding:12px; margin-top:7px; border:1px solid #cbd5e1; border-radius:9px; font-size:16px; background:white; }
+  .vacDay { font-weight:900; font-size:15px; margin:18px 0 4px; }
+  .vacRow { border:1px solid #e2e8f0; border-radius:11px; padding:12px 14px; margin-top:8px; }
+  .vacRow .time { font-weight:800; }
+  .vacGrid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; font-size:13px; }
+  .vacGrid div { border-radius:8px; padding:7px; text-align:center; background:#f8fafc; }
+  .vacGrid .ok { background:#f0fdf4; color:#15803d; font-weight:800; }
+  .vacGrid .ng { background:#fff1f2; color:#be123c; font-weight:800; }
   .backLink { color:#2563eb; text-decoration:none; font-size:13px; display:inline-block; margin-bottom:10px; }
 </style>
 </head>
@@ -59,7 +72,8 @@
 
   <div id="linkPage" class="card hidden">
     <h2 style="margin-top:0;">初回連携</h2>
-    <div class="notice">スタッフからお伝えした6桁の連携コードを入力してください。次回以降は入力不要です。</div>
+    <div class="notice">スタッフからお伝えした6桁の連携コードを入力してください。次回以降は入力不要です。<br>
+    コードが無い・有効期限が切れた場合は、公式LINEのトークで「コード再発行」とお送りください。</div>
     <label>連携コード
       <input id="codeInput" type="text" inputmode="numeric" maxlength="6" placeholder="123456">
     </label>
@@ -75,11 +89,11 @@
     <div class="actionGrid">
       <button class="actionCard" onclick="openAbsence()">
         <strong>欠席を登録</strong>
-        これから休むレッスンを選択
+        これから休む<wbr>レッスンを選択
       </button>
       <button class="actionCard" onclick="openExistingTransfers()">
         <strong>振替予約</strong>
-        未予約の振替を予約
+        未予約の<wbr>振替を予約
       </button>
       <button class="actionCard" onclick="openReservedTransfers()">
         <strong>予約済み振替</strong>
@@ -87,10 +101,48 @@
       </button>
     </div>
 
+    <div class="actionGrid" style="margin-top:12px;">
+      <button class="actionCard" onclick="openVacancy()">
+        <strong>空き状況</strong>
+        クラスごとの<wbr>空きを見る
+      </button>
+      <button class="actionCard" onclick="openClassChange()">
+        <strong>クラス変更の希望</strong>
+        希望の予約・<wbr>順番の確認
+      </button>
+    </div>
+
     <!-- 教室カレンダー（今月・来月のみ。PCの営業カレンダー生成ツールの publish.py が毎朝自動更新） -->
     <div style="margin-top:20px;">
       <h3 style="font-size:15px; margin:0 0 10px;">教室カレンダー</h3>
       <div class="biz-calendar" data-title="教室カレンダー" data-caution="※レッスン日は、／変更になる場合があります。／変更は公式LINEで／お知らせします。"></div>
+    </div>
+
+    <!-- 教室のご案内（ルール） -->
+    <div class="rules">
+      <h3>教室のご案内</h3>
+
+      <h4>■ 月謝</h4>
+      <p>月6,200円です。祝日などでレッスンが月4回に満たない月は、回数に応じて日割りします。<br>
+      ※入会月も、入会日以降のレッスン回数で日割りします。</p>
+      <p>月謝袋は毎月末にお渡しします。翌月最初のレッスンの際に、お釣りのないよう現金を入れてお持ちください。</p>
+
+      <h4>■ 休会</h4>
+      <p>休会もできます。このページからはお手続きできませんので、スタッフに直接お伝えください。</p>
+
+      <h4>■ レッスン中のトランポリン開放</h4>
+      <p>レッスン中は、空いているトランポリンを生徒のご家族に開放しています（1家族500円）。</p>
+
+      <h4>■ 欠席と振替</h4>
+      <p>欠席したレッスンの回数分、振替レッスンを受けられます。一般開放の時間に、パーク利用料としてお使いいただくこともできます。<br>
+      どちらも、<strong>欠席した月の翌月末まで</strong>にご利用ください。</p>
+      <p>当日の振替予約は、次の時刻まで受け付けます。<br>
+      ・平日：15:30まで<br>
+      ・土曜 10時・11時クラス：9:30まで<br>
+      ・土曜 16時・17時クラス：15:30まで</p>
+
+      <h4>■ パーク利用の譲渡</h4>
+      <p>パーク利用としてお使いいただく場合は、ご家族の間で譲ることができます。</p>
     </div>
   </div>
 
@@ -174,6 +226,32 @@
   </div>
 
 
+  <!-- 空き状況 -->
+  <div id="vacancyPage" class="card hidden">
+    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
+    <h2 style="margin-top:0;">空き状況</h2>
+    <div class="notice">表示しているのは、その日から入って、その後もずっと定員内におさまる人数です。クラス変更をご希望の場合は、「クラス変更の希望」からお申し込みください。</div>
+    <div id="vacancyList"><div class="loadingSmall">読み込み中...</div></div>
+  </div>
+
+  <!-- クラス変更の希望 -->
+  <div id="classChangePage" class="card hidden">
+    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
+    <h2 style="margin-top:0;">クラス変更の希望</h2>
+    <div class="notice">第3希望まで予約できます。空きが出たら、受付順に公式LINEでご連絡します。ご連絡から1週間以内にお返事ください。</div>
+
+    <h3 style="font-size:15px; margin:18px 0 0;">受付中の希望</h3>
+    <div id="ccList"><div class="loadingSmall">読み込み中...</div></div>
+
+    <h3 style="font-size:15px; margin:22px 0 0;">新しく希望を出す</h3>
+    <div id="ccChildren"></div>
+    <label>第1希望<select id="ccChoice1"></select></label>
+    <label>第2希望（任意）<select id="ccChoice2"></select></label>
+    <label>第3希望（任意）<select id="ccChoice3"></select></label>
+    <button class="primary" onclick="submitClassChange()">この内容で希望を出す</button>
+    <div id="ccError" class="error hidden"></div>
+  </div>
+
   <div id="fatalError" class="card hidden">
     <div class="error" id="fatalErrorText"></div>
   </div>
@@ -183,22 +261,9 @@
 <script>
 
 const API_URL = "https://air-trick-proxy.h-m00yamaguchi.workers.dev";
-const LIFF_ID = "2011505032-SD9CVaDH";
-
-// ------------------------------------
-// 新しいマイページへの引っ越し（2026-10）
-// ・新マイページ（app/）から「?migrate=合言葉」付きで開かれたときは、
-//   このLINEログインの連携を新マイページへ引き継いで、すぐ新マイページへ戻る。
-// ・SWITCHED を true にすると（切り替え日）、このページを開いた人は全員、新マイページへ移る。
-// ------------------------------------
-const NEW_LIFF_ID = "__NEW_LIFF_ID__";
-const SWITCHED = false;
-const NEW_LIFF_URL = "https://liff.line.me/" + NEW_LIFF_ID;
-
-// 切り替え後は、引き継ぎ以外ではLIFFの準備を待たずにすぐ移動する（表示を速くするため）
-if (SWITCHED && location.search.indexOf("migrate") === -1) {
-  location.replace(NEW_LIFF_URL);
-}
+// 新しいLINEログイン（公式アカウントと同じプロバイダー）のLIFF。旧LIFFは引き継ぎのときだけ使う。
+const LIFF_ID = "__NEW_LIFF_ID__";
+const OLD_LIFF_ID = "2011505032-SD9CVaDH";
 
 let currentIdToken = "";
 let parentToken = "";
@@ -210,7 +275,7 @@ let homeData = null;
 
 function showPage(id) {
   ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
-   "existingTransferPage", "reservedTransferPage", "calendarPage", "fatalError"
+   "existingTransferPage", "reservedTransferPage", "calendarPage", "vacancyPage", "classChangePage", "fatalError"
   ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
@@ -276,22 +341,8 @@ async function init() {
     currentIdToken = liff.getIDToken();
     if (!currentIdToken) { fatal("LINEのログイン情報を取得できませんでした。"); return; }
 
-    const migrateToken = new URLSearchParams(location.search).get("migrate");
-    if (migrateToken) {
-      setStatus("以前の連携を引き継いでいます...");
-      try {
-        const migrateUrl = API_URL + "?action=migrateLine&payload=" + encodeURIComponent(JSON.stringify({ idToken: currentIdToken, migrateToken: migrateToken }));
-        await fetch(migrateUrl, { method: "GET" });
-      } catch (error) {
-        // 引き継げなくても新マイページへ戻る（新マイページで連携コードの入力になる）
-      }
-      location.replace(NEW_LIFF_URL);
-      return;
-    }
-    if (SWITCHED) { location.replace(NEW_LIFF_URL); return; }
-
     setStatus("サーバーに問い合わせています...");
-    const url = API_URL + "?action=parentLogin&payload=" + encodeURIComponent(JSON.stringify({ idToken: currentIdToken }));
+    const url = API_URL + "?action=parentLogin&payload=" + encodeURIComponent(JSON.stringify({ idToken: currentIdToken, app: "new" }));
     const response = await fetch(url, { method: "GET" });
     const res = await response.json();
 
@@ -300,6 +351,10 @@ async function init() {
     if (res.data.linked) {
       parentToken = res.data.token;
       await loadHome();
+    } else if (res.data.migrateToken) {
+      // 以前のマイページの連携を引き継ぐ（旧マイページを一瞬開いて、すぐこのページに戻ってくる）
+      setStatus("以前の連携を引き継いでいます...");
+      location.replace("https://liff.line.me/" + OLD_LIFF_ID + "?migrate=" + encodeURIComponent(res.data.migrateToken));
     } else {
       showPage("linkPage");
     }
@@ -317,7 +372,7 @@ function submitLinkCode() {
   liff.getProfile().then(async function(profile) {
     try {
       const url = API_URL + "?action=linkByCode&payload=" + encodeURIComponent(JSON.stringify({
-        idToken: currentIdToken, code: code, displayName: profile.displayName || ""
+        idToken: currentIdToken, code: code, displayName: profile.displayName || "", app: "new"
       }));
       const response = await fetch(url, { method: "GET" });
       const res = await response.json();
@@ -756,10 +811,140 @@ async function confirmCalReservation(classId) {
   }
 }
 
+// ------------------------------------
+// 空き状況・クラス変更の希望
+// ------------------------------------
+
+let vacancyData = null;
+
+async function loadVacancyData() {
+  vacancyData = await callApi("getParentVacancy", {});
+  return vacancyData;
+}
+
+function vacText(n) { return n > 0 ? "空き " + n : "満席"; }
+
+// "2026/11/01" → "11月1日"
+function monthDayLabel(text) {
+  const m = String(text || "").match(/^\d{4}\/(\d{1,2})\/(\d{1,2})$/);
+  return m ? Number(m[1]) + "月" + Number(m[2]) + "日" : text;
+}
+
+async function openVacancy() {
+  showPage("vacancyPage");
+  window.scrollTo(0, 0);
+  const area = document.getElementById("vacancyList");
+  area.innerHTML = "<div class='loadingSmall'>読み込み中...</div>";
+  try {
+    const data = await loadVacancyData();
+    let html = "", day = null;
+    data.classes.forEach(function(c) {
+      if (c.weekday !== day) { day = c.weekday; html += "<div class='vacDay'>" + escapeHtml(day) + "曜日</div>"; }
+      html += "<div class='vacRow'><div class='time'>" + escapeHtml(c.start) + "〜" + escapeHtml(c.end) + "</div>" +
+        "<div class='vacGrid'>" +
+          "<div class='" + (c.now > 0 ? "ok" : "ng") + "'>今すぐ<br>" + vacText(c.now) + "</div>" +
+          "<div class='" + (c.nextMonth > 0 ? "ok" : "ng") + "'>" + escapeHtml(monthDayLabel(data.nextMonthFirst)) + "から<br>" + vacText(c.nextMonth) + "</div>" +
+        "</div>" + (c.waiting ? "<div class='sub'>空き待ち " + c.waiting + "名</div>" : "") + "</div>";
+    });
+    area.innerHTML = html || "<div class='empty'>クラスがありません。</div>";
+  } catch (error) {
+    area.innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
+  }
+}
+
+async function openClassChange() {
+  showPage("classChangePage");
+  window.scrollTo(0, 0);
+  document.getElementById("ccError").classList.add("hidden");
+  document.getElementById("ccList").innerHTML = "<div class='loadingSmall'>読み込み中...</div>";
+  try {
+    const results = await Promise.all([callApi("getClassChangeRequests", {}), vacancyData ? Promise.resolve(vacancyData) : loadVacancyData()]);
+    renderClassChange(results[0]);
+  } catch (error) {
+    document.getElementById("ccList").innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
+  }
+}
+
+function renderClassChange(requests) {
+  const busy = {};
+  const list = document.getElementById("ccList");
+  if (!requests.length) {
+    list.innerHTML = "<div class='empty'>受付中の希望はありません。</div>";
+  } else {
+    list.innerHTML = requests.map(function(r) {
+      (r.studentIds || []).forEach(function(id) { busy[id] = true; });
+      return "<div class='transferRow'><div class='lessonName'>" + escapeHtml(r.children.join("・")) + "</div>" +
+        "<div class='sub'>" + escapeHtml(r.status) + "（受付 " + escapeHtml(r.receivedAt) + "）</div>" +
+        "<div class='sub'>" + r.choices.map(function(c) {
+          return "第" + c.rank + "希望：" + escapeHtml(c.label) + (c.position > 0 ? "（" + c.position + "番目）" : "");
+        }).join("<br>") + "</div>" +
+        "<button class='danger' style='margin-top:10px;' onclick=\"cancelClassChange('" + escapeHtml(r.id) + "')\">この希望を取り消す</button></div>";
+    }).join("");
+  }
+
+  const kids = (homeData.students || []).filter(function(s) { return !busy[s.studentId]; });
+  document.getElementById("ccChildren").innerHTML = kids.length ? kids.map(function(s) {
+    return "<label class='transferRow lessonChoice'><input type='checkbox' class='ccKid' value='" + escapeHtml(s.studentId) + "' data-class='" + escapeHtml(s.classId) + "' onchange='renderChoiceOptions()'>" +
+      "<div><div class='lessonName'>" + escapeHtml(s.studentName) + "</div><div class='sub'>今のクラス：" + escapeHtml(s.classId) + "</div></div></label>";
+  }).join("") : "<div class='empty'>新しく希望を出せるお子さまはいません。</div>";
+  renderChoiceOptions();
+}
+
+// 選んだお子さまの今のクラスは、希望の選択肢に出さない
+function renderChoiceOptions() {
+  const current = {};
+  document.querySelectorAll(".ccKid:checked").forEach(function(el) { current[el.dataset.class] = true; });
+  [1, 2, 3].forEach(function(n) {
+    const sel = document.getElementById("ccChoice" + n);
+    const keep = sel.value;
+    sel.innerHTML = "<option value=''>" + (n === 1 ? "選んでください" : "（なし）") + "</option>" +
+      vacancyData.classes.filter(function(c) { return !current[c.classId]; }).map(function(c) {
+        return "<option value='" + escapeHtml(c.classId) + "'>" + escapeHtml(c.weekday + "曜 " + c.start + "〜" + c.end) + "</option>";
+      }).join("");
+    sel.value = keep;
+  });
+}
+
+async function submitClassChange() {
+  const errorBox = document.getElementById("ccError");
+  const showError = function(text) { errorBox.textContent = text; errorBox.classList.remove("hidden"); };
+  errorBox.classList.add("hidden");
+  const ids = Array.from(document.querySelectorAll(".ccKid:checked")).map(function(el) { return el.value; });
+  const choices = [1, 2, 3].map(function(n) { return document.getElementById("ccChoice" + n).value; }).filter(Boolean);
+  if (!ids.length) { showError("お子さまを選んでください。"); return; }
+  if (!choices.length) { showError("第1希望のクラスを選んでください。"); return; }
+  if (new Set(choices).size !== choices.length) { showError("同じクラスが複数の希望に入っています。"); return; }
+
+  const labels = choices.map(function(id, i) {
+    const c = vacancyData.classes.find(function(x) { return x.classId === id; });
+    return "第" + (i + 1) + "希望：" + (c ? c.weekday + "曜 " + c.start : id);
+  }).join("\n");
+  if (!confirm("次の内容でクラス変更の希望を出します。\n\n" + labels + "\n\nよろしいですか？")) return;
+
+  try {
+    await callApi("requestClassChange", { studentIds: ids, choices: choices });
+    alert("クラス変更の希望を受け付けました。空きが出たら、受付順に公式LINEでご連絡します。");
+    [1, 2, 3].forEach(function(n) { document.getElementById("ccChoice" + n).value = ""; });
+    openClassChange();
+  } catch (error) {
+    showError(error.message || String(error));
+  }
+}
+
+async function cancelClassChange(entryId) {
+  if (!confirm("この希望を取り消します。取り消すと順番も無くなります。よろしいですか？")) return;
+  try {
+    await callApi("cancelClassChangeRequest", { entryId: entryId });
+    openClassChange();
+  } catch (error) {
+    alert(error.message || String(error));
+  }
+}
+
 init();
 
 </script>
 
-<script src="calendar/embed.js" defer></script>
+<script src="../calendar/embed.js" defer></script>
 </body>
 </html>
