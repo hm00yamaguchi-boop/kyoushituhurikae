@@ -54,7 +54,8 @@
   .vacRow { border:1px solid #e2e8f0; border-radius:11px; padding:12px 14px; margin-top:8px; }
   .vacRow .time { font-weight:800; }
   .vacGrid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; font-size:13px; }
-  .vacGrid div { border-radius:8px; padding:7px; text-align:center; background:#f8fafc; }
+  .vacGrid div { border-radius:8px; padding:7px 4px; text-align:center; background:#f8fafc; }
+  .vacLabel { white-space:nowrap; font-size:12px; letter-spacing:-0.02em; }
   .vacGrid .ok { background:#f0fdf4; color:#15803d; font-weight:800; }
   .vacGrid .ng { background:#fff1f2; color:#be123c; font-weight:800; }
   .backLink { color:#2563eb; text-decoration:none; font-size:13px; display:inline-block; margin-bottom:10px; }
@@ -869,8 +870,8 @@ async function openVacancy() {
       if (c.weekday !== day) { day = c.weekday; html += "<div class='vacDay'>" + escapeHtml(day) + "曜日</div>"; }
       html += "<div class='vacRow'><div class='time'>" + escapeHtml(c.start) + "〜" + escapeHtml(c.end) + "</div>" +
         "<div class='vacGrid'>" +
-          "<div class='" + (c.now > 0 ? "ok" : "ng") + "'>今すぐ<br>" + vacText(c.now) + "</div>" +
-          "<div class='" + (c.nextMonth > 0 ? "ok" : "ng") + "'>" + escapeHtml(monthDayLabel(data.nextMonthFirst)) + "から<br>" + vacText(c.nextMonth) + "</div>" +
+          "<div class='" + (c.now > 0 ? "ok" : "ng") + "'><span class='vacLabel'>【現在】</span><br>" + vacText(c.now) + "</div>" +
+          "<div class='" + (c.nextMonth > 0 ? "ok" : "ng") + "'><span class='vacLabel'>【" + escapeHtml(monthDayLabel(data.nextMonthFirst)) + "から】</span><br>" + vacText(c.nextMonth) + "</div>" +
         "</div>" + (c.waiting ? "<div class='sub'>空き待ち " + c.waiting + "名</div>" : "") + "</div>";
     });
     area.innerHTML = html || "<div class='empty'>クラスがありません。</div>";
