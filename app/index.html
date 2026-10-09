@@ -110,6 +110,10 @@
         <strong>クラス変更</strong>
         希望の予約・<wbr>順番の確認
       </button>
+      <button class="actionCard" onclick="openSibling()">
+        <strong>ご兄弟の入会</strong>
+        体験・<wbr>空き待ちの<wbr>お申込み
+      </button>
     </div>
 
     <!-- 教室カレンダー（今月・来月のみ。PCの営業カレンダー生成ツールの publish.py が毎朝自動更新） -->
@@ -252,6 +256,29 @@
     <div id="ccError" class="error hidden"></div>
   </div>
 
+  <!-- ご兄弟の入会 -->
+  <div id="siblingPage" class="card hidden">
+    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
+    <h2 style="margin-top:0;">ご兄弟の入会</h2>
+    <div class="notice">空きのあるクラスは<b>体験のお申込み</b>、空きのないクラスは<b>空き待ちのご予約</b>（第3希望まで）になります。受付順に公式LINEでご連絡します。</div>
+
+    <h3 style="font-size:15px; margin:18px 0 0;">受付中のお申込み</h3>
+    <div id="sbList"><div class="loadingSmall">読み込み中...</div></div>
+
+    <h3 style="font-size:15px; margin:22px 0 0;">新しく申し込む</h3>
+    <div id="sbChildren"></div>
+    <button class="secondary" style="margin-top:10px;" onclick="addSiblingChild()">＋ お子さまを追加</button>
+
+    <label>第1希望<select id="sbChoice1" onchange="updateSiblingMode()"></select></label>
+    <div id="sbModeNote" class="sub"></div>
+    <div id="sbMoreChoices">
+      <label>第2希望（任意）<select id="sbChoice2"></select></label>
+      <label>第3希望（任意）<select id="sbChoice3"></select></label>
+    </div>
+    <button class="primary" id="sbSubmit" onclick="submitSibling()">申し込む</button>
+    <div id="sbError" class="error hidden"></div>
+  </div>
+
   <div id="fatalError" class="card hidden">
     <div class="error" id="fatalErrorText"></div>
   </div>
@@ -275,7 +302,7 @@ let homeData = null;
 
 function showPage(id) {
   ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
-   "existingTransferPage", "reservedTransferPage", "calendarPage", "vacancyPage", "classChangePage", "fatalError"
+   "existingTransferPage", "reservedTransferPage", "calendarPage", "vacancyPage", "classChangePage", "siblingPage", "fatalError"
   ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
@@ -859,7 +886,7 @@ async function openClassChange() {
   document.getElementById("ccList").innerHTML = "<div class='loadingSmall'>読み込み中...</div>";
   try {
     const results = await Promise.all([callApi("getClassChangeRequests", {}), vacancyData ? Promise.resolve(vacancyData) : loadVacancyData()]);
-    renderClassChange(results[0]);
+    renderClassChange(results[0].filter(function(r) { return r.type !== "新規入会"; }));
   } catch (error) {
     document.getElementById("ccList").innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
   }
@@ -931,13 +958,129 @@ async function submitClassChange() {
   }
 }
 
-async function cancelClassChange(entryId) {
-  if (!confirm("この希望を取り消します。取り消すと順番も無くなります。よろしいですか？")) return;
+async function cancelClassChange(entryId, isSibling) {
+  if (!confirm((isSibling ? "このお申込み" : "この希望") + "を取り消します。取り消すと順番も無くなります。よろしいですか？")) return;
   try {
     await callApi("cancelClassChangeRequest", { entryId: entryId });
-    openClassChange();
+    if (isSibling) openSibling(); else openClassChange();
   } catch (error) {
     alert(error.message || String(error));
+  }
+}
+
+// ------------------------------------
+// ご兄弟の入会
+// ------------------------------------
+
+let siblingChildren = [{}];
+
+async function openSibling() {
+  showPage("siblingPage");
+  window.scrollTo(0, 0);
+  document.getElementById("sbError").classList.add("hidden");
+  document.getElementById("sbList").innerHTML = "<div class='loadingSmall'>読み込み中...</div>";
+  try {
+    const results = await Promise.all([callApi("getClassChangeRequests", {}), vacancyData ? Promise.resolve(vacancyData) : loadVacancyData()]);
+    renderSiblingList(results[0].filter(function(r) { return r.type === "新規入会"; }));
+    renderSiblingChildren();
+    renderSiblingChoices();
+  } catch (error) {
+    document.getElementById("sbList").innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
+  }
+}
+
+function renderSiblingList(list) {
+  document.getElementById("sbList").innerHTML = list.length ? list.map(function(r) {
+    return "<div class='transferRow'><div class='lessonName'>" + escapeHtml(r.children.join("・")) + "</div>" +
+      "<div class='sub'>" + escapeHtml(r.applyKind === "体験申込" ? "体験のお申込み" : "空き待ち") + "・" + escapeHtml(r.status) + "（受付 " + escapeHtml(r.receivedAt) + "）</div>" +
+      "<div class='sub'>" + r.choices.map(function(c) {
+        return "第" + c.rank + "希望：" + escapeHtml(c.label) + (c.position > 0 ? "（" + c.position + "番目）" : "");
+      }).join("<br>") + "</div>" +
+      "<button class='danger' style='margin-top:10px;' onclick=\"cancelClassChange('" + escapeHtml(r.id) + "', true)\">このお申込みを取り消す</button></div>";
+  }).join("") : "<div class='empty'>受付中のお申込みはありません。</div>";
+}
+
+function readSiblingChildren() {
+  siblingChildren = siblingChildren.map(function(c, i) {
+    const v = function(id) { const el = document.getElementById(id + i); return el ? el.value : ""; };
+    return { kana: v("sbKana"), name: v("sbName"), gender: v("sbGender"), birthday: v("sbBirthday"), experience: v("sbExp") };
+  });
+}
+
+function addSiblingChild() { readSiblingChildren(); siblingChildren.push({}); renderSiblingChildren(); }
+function removeSiblingChild(i) { readSiblingChildren(); siblingChildren.splice(i, 1); renderSiblingChildren(); }
+
+function renderSiblingChildren() {
+  document.getElementById("sbChildren").innerHTML = siblingChildren.map(function(c, i) {
+    return "<div class='childCard'><div class='toolbar'><strong>" + (i + 1) + "人目</strong>" +
+      (siblingChildren.length > 1 ? "<button class='secondary' onclick='removeSiblingChild(" + i + ")'>削除</button>" : "") + "</div>" +
+      "<label>ふりがな<input id='sbKana" + i + "' value='" + escapeHtml(c.kana || "") + "'></label>" +
+      "<label>お名前<input id='sbName" + i + "' value='" + escapeHtml(c.name || "") + "'></label>" +
+      "<label>性別<select id='sbGender" + i + "'>" + ["", "男", "女"].map(function(g) {
+        return "<option value='" + g + "'" + (g === (c.gender || "") ? " selected" : "") + ">" + (g || "選んでください") + "</option>";
+      }).join("") + "</select></label>" +
+      "<label>生年月日<input type='date' id='sbBirthday" + i + "' value='" + escapeHtml(c.birthday || "") + "'></label>" +
+      "<label>習い事・運動経験（任意）<input id='sbExp" + i + "' value='" + escapeHtml(c.experience || "") + "'></label></div>";
+  }).join("");
+}
+
+function vacancyLabel(c) {
+  const open = c.now > 0 || c.nextMonth > 0;
+  return c.weekday + "曜 " + c.start + "〜" + c.end + "（" + (open ? "空きあり" : "満席") + "）";
+}
+
+function renderSiblingChoices() {
+  [1, 2, 3].forEach(function(n) {
+    const sel = document.getElementById("sbChoice" + n);
+    const keep = sel.value;
+    sel.innerHTML = "<option value=''>" + (n === 1 ? "選んでください" : "（なし）") + "</option>" +
+      vacancyData.classes.map(function(c) {
+        return "<option value='" + escapeHtml(c.classId) + "'>" + escapeHtml(n === 1 ? vacancyLabel(c) : c.weekday + "曜 " + c.start + "〜" + c.end) + "</option>";
+      }).join("");
+    sel.value = keep;
+  });
+  updateSiblingMode();
+}
+
+function siblingHasSpace() {
+  const id = document.getElementById("sbChoice1").value;
+  const c = vacancyData.classes.find(function(x) { return x.classId === id; });
+  return !!c && (c.now > 0 || c.nextMonth > 0);
+}
+
+function updateSiblingMode() {
+  const id = document.getElementById("sbChoice1").value;
+  const space = siblingHasSpace();
+  document.getElementById("sbMoreChoices").classList.toggle("hidden", !id || space);
+  document.getElementById("sbModeNote").textContent = !id ? "" :
+    space ? "このクラスは空きがあります。体験のお申込みになります。" : "このクラスは満席です。空き待ちのご予約になります（第3希望まで選べます）。";
+  document.getElementById("sbSubmit").textContent = !id ? "申し込む" : space ? "体験を申し込む" : "空き待ちを予約する";
+}
+
+async function submitSibling() {
+  const errorBox = document.getElementById("sbError");
+  const showError = function(text) { errorBox.textContent = text; errorBox.classList.remove("hidden"); };
+  errorBox.classList.add("hidden");
+  readSiblingChildren();
+  if (siblingChildren.some(function(c) { return !c.kana.trim() || !c.name.trim() || !c.birthday; })) {
+    showError("お子さまのふりがな・お名前・生年月日を入力してください。"); return;
+  }
+  const space = siblingHasSpace();
+  const choices = (space ? [1] : [1, 2, 3]).map(function(n) { return document.getElementById("sbChoice" + n).value; }).filter(Boolean);
+  if (!choices.length) { showError("第1希望のクラスを選んでください。"); return; }
+  if (new Set(choices).size !== choices.length) { showError("同じクラスが複数の希望に入っています。"); return; }
+
+  const names = siblingChildren.map(function(c) { return c.name; }).join("・");
+  if (!confirm(names + " さんの" + (space ? "体験" : "空き待ち") + "を申し込みます。よろしいですか？")) return;
+
+  try {
+    await callApi("applySibling", { children: siblingChildren, choices: choices });
+    alert(space ? "体験のお申込みを受け付けました。公式LINEで日程のご連絡をします。" : "空き待ちのご予約を受け付けました。空きが出たら、受付順に公式LINEでご連絡します。");
+    siblingChildren = [{}];
+    [1, 2, 3].forEach(function(n) { document.getElementById("sbChoice" + n).value = ""; });
+    openSibling();
+  } catch (error) {
+    showError(error.message || String(error));
   }
 }
 
