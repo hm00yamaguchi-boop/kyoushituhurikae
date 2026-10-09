@@ -107,7 +107,7 @@
         クラスごとの<wbr>空きを見る
       </button>
       <button class="actionCard" onclick="openClassChange()">
-        <strong>クラス変更の希望</strong>
+        <strong>クラス変更</strong>
         希望の予約・<wbr>順番の確認
       </button>
     </div>
@@ -230,7 +230,7 @@
   <div id="vacancyPage" class="card hidden">
     <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
     <h2 style="margin-top:0;">空き状況</h2>
-    <div class="notice">表示しているのは、その日から入って、その後もずっと定員内におさまる人数です。クラス変更をご希望の場合は、「クラス変更の希望」からお申し込みください。</div>
+    <div class="notice">「空き」は、その日から入会・クラス変更ができる人数です（先にご予約いただいている方の分は除いています）。クラス変更をご希望の場合は、ホームの「クラス変更」からお申し込みください。</div>
     <div id="vacancyList"><div class="loadingSmall">読み込み中...</div></div>
   </div>
 
@@ -238,7 +238,7 @@
   <div id="classChangePage" class="card hidden">
     <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
     <h2 style="margin-top:0;">クラス変更の希望</h2>
-    <div class="notice">第3希望まで予約できます。空きが出たら、受付順に公式LINEでご連絡します。ご連絡から1週間以内にお返事ください。</div>
+    <div class="notice">第3希望まで予約できます。空きが出たら、受付順に公式LINEでご連絡します。ご連絡から<span style="white-space:nowrap;">1週間以内に</span>お返事ください。</div>
 
     <h3 style="font-size:15px; margin:18px 0 0;">受付中の希望</h3>
     <div id="ccList"><div class="loadingSmall">読み込み中...</div></div>
