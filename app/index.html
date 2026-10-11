@@ -27,6 +27,11 @@
   .childName, .lessonName { font-weight:900; font-size:17px; }
   .sub { color:#64748b; font-size:13px; margin-top:4px; line-height:1.5; }
   .actionGrid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+  .actionGrid.hidden { display:none; }
+  .parkDone { margin-top:14px; border:3px solid #15803d; border-radius:14px; padding:18px; text-align:center; background:#f0fdf4; }
+  .parkDone .big { font-size:22px; font-weight:900; color:#15803d; }
+  .parkDone .sub { word-break:keep-all; }
+  .parkDone .when { font-size:18px; font-weight:800; margin-top:6px; }
   .actionCard { text-align:left; min-height:88px; background:white; border:1px solid #cbd5e1; border-radius:12px; padding:14px; cursor:pointer; }
   .actionCard strong { display:block; font-size:15px; margin-bottom:5px; }
   .lessonChoice { display:flex; align-items:flex-start; gap:11px; }
@@ -131,6 +136,10 @@
       <button class="actionCard" onclick="openReservedTransfers()">
         <strong>予約済み振替</strong>
         変更・キャンセル
+      </button>
+      <button class="actionCard" onclick="openPark()">
+        <strong>パーク利用</strong>
+        振替分で<wbr>パークを利用
       </button>
     </div>
 
@@ -344,6 +353,20 @@
     </div>
   </div>
 
+  <!-- パーク利用（振替分の消化） -->
+  <div id="parkPage" class="card hidden">
+    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
+    <h2 style="margin-top:0;">パーク利用</h2>
+    <div class="notice">振替の権利（未予約の分）を、一般開放のパーク利用料として使えます。ご家族の間で譲ることもできます。<br>
+    押すと、選んだお子さまの分から<b>1回分</b>を使います（期限が近いものから）。受付で、使った後の画面をスタッフにお見せください。</div>
+    <div id="parkList"><div class="loadingSmall">読み込み中...</div></div>
+    <div id="parkActions" class="hidden">
+      <div id="parkCount" class="countBar">選択中：0回分</div>
+      <button class="primary" onclick="submitPark()">パーク利用に使う</button>
+    </div>
+    <div id="parkResult"></div>
+  </div>
+
   <div id="fatalError" class="card hidden">
     <div class="error" id="fatalErrorText"></div>
   </div>
@@ -367,7 +390,7 @@ let homeData = null;
 
 function showPage(id) {
   ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
-   "existingTransferPage", "reservedTransferPage", "calendarPage", "vacancyPage", "classChangePage", "siblingPage", "ticketPage", "applyPage", "fatalError"
+   "existingTransferPage", "reservedTransferPage", "calendarPage", "vacancyPage", "classChangePage", "siblingPage", "ticketPage", "applyPage", "parkPage", "fatalError"
   ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
@@ -687,6 +710,71 @@ async function cancelApply(entryId) {
   try {
     await callApi("cancelMyApplication", { idToken: currentIdToken, entryId: entryId });
     loadMyApplications();
+  } catch (error) {
+    alert(error.message || String(error));
+  }
+}
+
+// ------------------------------------
+// パーク利用（振替の権利をパーク利用料として使う）
+// ------------------------------------
+
+let parkData = null;
+let parkSelected = {};
+
+async function openPark() {
+  showPage("parkPage");
+  window.scrollTo(0, 0);
+  parkSelected = {};
+  document.getElementById("parkResult").innerHTML = "";
+  document.getElementById("parkActions").classList.add("hidden");
+  const area = document.getElementById("parkList");
+  area.innerHTML = "<div class='loadingSmall'>読み込み中...</div>";
+  try {
+    parkData = await loadTransferDashboard();
+    renderParkList();
+  } catch (error) {
+    area.innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
+  }
+}
+
+function renderParkList() {
+  const area = document.getElementById("parkList");
+  const items = (parkData.unreserved || []).filter(function(item) { return item.availableCount > 0; });
+  if (!items.length) { area.innerHTML = "<div class='empty'>パーク利用に使える振替（未予約の分）はありません。</div>"; return; }
+  area.innerHTML = items.map(function(item) {
+    return "<label class='transferRow lessonChoice'>" +
+      "<input type='checkbox' onchange='toggleParkStudent(\"" + escapeHtml(item.studentId) + "\", this.checked)'>" +
+      "<div><div class='lessonName'>" + escapeHtml(item.studentName) + "</div>" +
+      "<div class='sub'>使える回数：" + item.availableCount + "回／一番近い期限：" + escapeHtml(item.earliestDeadline || "") + "</div></div></label>";
+  }).join("");
+}
+
+function toggleParkStudent(studentId, checked) {
+  if (checked) parkSelected[studentId] = true; else delete parkSelected[studentId];
+  const count = Object.keys(parkSelected).length;
+  document.getElementById("parkCount").textContent = "選択中：" + count + "回分（1人につき1回分）";
+  document.getElementById("parkActions").classList.toggle("hidden", count === 0);
+}
+
+async function submitPark() {
+  const ids = Object.keys(parkSelected);
+  if (!ids.length) return;
+  const items = (parkData.unreserved || []).filter(function(item) { return parkSelected[item.studentId]; });
+  const names = items.map(function(item) { return item.studentName; }).join("・");
+  if (!confirm(names + " さんの振替を、" + ids.length + "回分パーク利用に使います。\n使った分は元に戻せません。よろしいですか？")) return;
+  const rows = items.reduce(function(all, item) { return all.concat(item.rows.map(function(r) { return r.rowNumber; })); }, []);
+  try {
+    const res = await callApi("markParkUsed", { rowNumbers: rows, parkDateText: "" });
+    const now = new Date();
+    const pad = function(n) { return String(n).padStart(2, "0"); };
+    document.getElementById("parkList").innerHTML = "";
+    document.getElementById("parkActions").classList.add("hidden");
+    document.getElementById("parkResult").innerHTML =
+      "<div class='parkDone'><div class='big'>パーク利用 受付済み</div>" +
+      "<div class='when'>" + (now.getMonth() + 1) + "月" + now.getDate() + "日 " + pad(now.getHours()) + ":" + pad(now.getMinutes()) + "</div>" +
+      "<div style='margin-top:8px;'>" + escapeHtml(names) + "（" + res.count + "回分）</div>" +
+      "<div class='sub' style='margin-top:8px;'>この画面を<wbr>受付のスタッフに<wbr>お見せください。</div></div>";
   } catch (error) {
     alert(error.message || String(error));
   }
