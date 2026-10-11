@@ -102,6 +102,13 @@
       </button>
     </div>
 
+    <div id="ticketActions" class="actionGrid hidden" style="margin-top:12px;">
+      <button class="actionCard" onclick="openTicket()">
+        <strong>チケット予約</strong>
+        レッスンの予約・<wbr>残り回数の確認
+      </button>
+    </div>
+
     <div class="actionGrid" style="margin-top:12px;">
       <button class="actionCard" onclick="openVacancy()">
         <strong>空き状況</strong>
@@ -280,6 +287,31 @@
     <div id="sbError" class="error hidden"></div>
   </div>
 
+  <!-- チケット予約 -->
+  <div id="ticketPage" class="card hidden">
+    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
+    <h2 style="margin-top:0;">チケット予約</h2>
+    <div class="notice">空きのあるクラスに予約できます。チケットは、出席したときに1回分使います（お休みやキャンセルでは減りません）。有効期限は、そのチケットを最初に使った日から半年です。当日の予約・キャンセルは、振替と同じ受付締切までです。</div>
+    <div id="tkChildSelect"></div>
+    <div id="tkSummary"></div>
+
+    <h3 style="font-size:15px; margin:18px 0 0;">予約中のレッスン</h3>
+    <div id="tkUpcoming"></div>
+
+    <h3 style="font-size:15px; margin:22px 0 0;">新しく予約する</h3>
+    <div class="calendarHeader">
+      <button class="secondary" onclick="changeTicketMonth(-1)">←前月</button>
+      <div id="tkMonthTitle" class="calendarTitle"></div>
+      <button class="secondary" onclick="changeTicketMonth(1)">翌月→</button>
+    </div>
+    <div class="calendarWeek"><div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div></div>
+    <div id="tkGrid" class="calendarGrid"></div>
+    <div id="tkClassArea" class="hidden" style="margin-top:18px;">
+      <h3 id="tkClassDate" style="font-size:15px;"></h3>
+      <div id="tkClassList"></div>
+    </div>
+  </div>
+
   <div id="fatalError" class="card hidden">
     <div class="error" id="fatalErrorText"></div>
   </div>
@@ -303,7 +335,7 @@ let homeData = null;
 
 function showPage(id) {
   ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
-   "existingTransferPage", "reservedTransferPage", "calendarPage", "vacancyPage", "classChangePage", "siblingPage", "fatalError"
+   "existingTransferPage", "reservedTransferPage", "calendarPage", "vacancyPage", "classChangePage", "siblingPage", "ticketPage", "fatalError"
   ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
@@ -434,11 +466,15 @@ async function loadHome() {
     (data.students || []).forEach(function(s) {
       const div = document.createElement("div");
       div.className = "childCard";
-      div.innerHTML = "<div class='childName'>" + escapeHtml(s.studentName) + "</div><div class='sub'>" + escapeHtml(s.classId) + "</div>";
+      div.innerHTML = "<div class='childName'>" + escapeHtml(s.studentName) + "</div><div class='sub' id='childSub" + escapeHtml(s.studentId) + "'>" +
+        escapeHtml(isTicketChild(s) ? "チケット（予約制）" : s.classId) + "</div>";
       area.appendChild(div);
     });
 
+    const hasTicket = (data.students || []).some(isTicketChild);
+    document.getElementById("ticketActions").classList.toggle("hidden", !hasTicket);
     showPage("homePage");
+    if (hasTicket) loadTicketSummaries();
   } catch (error) {
     fatal(error.message || String(error));
   }
@@ -460,6 +496,8 @@ let absenceSelectedStudents = {};
 let absenceLessonsData = null;
 let absenceSelectedDate = "";
 let lastRegisteredTransferRows = [];
+
+function isTicketChild(s) { return s.studentType === "チケット"; }
 
 function openAbsence() {
   absenceSelectedStudents = {};
@@ -910,7 +948,7 @@ function renderClassChange(requests) {
     }).join("");
   }
 
-  const kids = (homeData.students || []).filter(function(s) { return !busy[s.studentId]; });
+  const kids = (homeData.students || []).filter(function(s) { return !busy[s.studentId] && !isTicketChild(s); });
   document.getElementById("ccChildren").innerHTML = kids.length ? kids.map(function(s) {
     return "<label class='transferRow lessonChoice'><input type='checkbox' class='ccKid' value='" + escapeHtml(s.studentId) + "' data-class='" + escapeHtml(s.classId) + "' onchange='renderChoiceOptions()'>" +
       "<div><div class='lessonName'>" + escapeHtml(s.studentName) + "</div><div class='sub'>今のクラス：" + escapeHtml(s.classId) + "</div></div></label>";
@@ -1082,6 +1120,153 @@ async function submitSibling() {
     openSibling();
   } catch (error) {
     showError(error.message || String(error));
+  }
+}
+
+// ------------------------------------
+// チケット予約（チケット生のみ）
+// ------------------------------------
+
+let ticketSummaries = [];
+let ticketStudentId = "";
+let tkYear = 0, tkMonth = 0, tkSelectedDate = "", tkCalData = null;
+
+async function loadTicketSummaries() {
+  try {
+    ticketSummaries = await callApi("getTicketSummary", {});
+    ticketSummaries.forEach(function(s) {
+      const el = document.getElementById("childSub" + s.studentId);
+      if (el) el.textContent = "チケット残り " + s.remaining + "回" + (s.nearestExpiry ? "（期限 " + ymdLabel(s.nearestExpiry) + "）" : "");
+    });
+  } catch (error) {
+    // 残り回数が出なくても、ホームは使えるようにする
+  }
+}
+
+function ymdLabel(text) {
+  const m = String(text || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? Number(m[1]) + "年" + Number(m[2]) + "月" + Number(m[3]) + "日" : text;
+}
+function mdLabel(text) {
+  const m = String(text || "").match(/^\d{4}-(\d{2})-(\d{2})$/);
+  return m ? Number(m[1]) + "/" + Number(m[2]) : text;
+}
+
+async function openTicket() {
+  showPage("ticketPage");
+  window.scrollTo(0, 0);
+  const kids = (homeData.students || []).filter(isTicketChild);
+  if (!ticketStudentId || !kids.some(function(k) { return k.studentId === ticketStudentId; })) ticketStudentId = kids.length ? kids[0].studentId : "";
+  document.getElementById("tkChildSelect").innerHTML = kids.length > 1
+    ? "<label>お子さま<select id='tkChild' onchange='onTicketChildChange()'>" + kids.map(function(k) {
+        return "<option value='" + escapeHtml(k.studentId) + "'" + (k.studentId === ticketStudentId ? " selected" : "") + ">" + escapeHtml(k.studentName) + "</option>";
+      }).join("") + "</select></label>"
+    : "";
+  const now = new Date();
+  tkYear = now.getFullYear(); tkMonth = now.getMonth() + 1;
+  await refreshTicketSummary();
+  loadTicketMonth();
+}
+
+function onTicketChildChange() {
+  ticketStudentId = document.getElementById("tkChild").value;
+  refreshTicketSummary();
+  loadTicketMonth();
+}
+
+async function refreshTicketSummary() {
+  document.getElementById("tkSummary").innerHTML = "<div class='loadingSmall'>読み込み中...</div>";
+  try {
+    ticketSummaries = await callApi("getTicketSummary", {});
+    const s = ticketSummaries.find(function(x) { return x.studentId === ticketStudentId; });
+    if (!s) { document.getElementById("tkSummary").innerHTML = ""; return; }
+    document.getElementById("tkSummary").innerHTML =
+      "<div class='countBar'>" + escapeHtml(s.studentName) + "：チケット残り " + s.remaining + "回" +
+      (s.nearestExpiry ? "（期限 " + escapeHtml(ymdLabel(s.nearestExpiry)) + "）" : "") +
+      "<div class='sub'>新しく予約できるのは、あと " + s.bookable + "回です（予約中の分を除く）。</div></div>";
+    document.getElementById("tkUpcoming").innerHTML = s.upcoming.length ? s.upcoming.map(function(r) {
+      return "<div class='transferRow'><div class='lessonName'>" + escapeHtml(mdLabel(r.date)) + "（" + escapeHtml(r.classLabel || r.classId) + "）</div>" +
+        "<button class='danger' style='margin-top:8px;' onclick=\"cancelTicket('" + escapeHtml(r.reservationId) + "')\">この予約をキャンセル</button></div>";
+    }).join("") : "<div class='empty'>予約中のレッスンはありません。</div>";
+  } catch (error) {
+    document.getElementById("tkSummary").innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
+  }
+}
+
+function changeTicketMonth(diff) {
+  const d = new Date(tkYear, tkMonth - 1 + diff, 1);
+  tkYear = d.getFullYear(); tkMonth = d.getMonth() + 1;
+  loadTicketMonth();
+}
+
+async function loadTicketMonth() {
+  tkSelectedDate = "";
+  document.getElementById("tkClassArea").classList.add("hidden");
+  document.getElementById("tkMonthTitle").textContent = tkYear + "年" + tkMonth + "月";
+  document.getElementById("tkGrid").innerHTML = "<div class='empty'>読み込み中...</div>";
+  try {
+    tkCalData = await callApi("getTicketCalendarMonth", { studentId: ticketStudentId, year: tkYear, month: tkMonth });
+    renderTicketGrid();
+  } catch (error) {
+    document.getElementById("tkGrid").innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
+  }
+}
+
+function renderTicketGrid() {
+  const grid = document.getElementById("tkGrid");
+  grid.innerHTML = "";
+  const first = new Date(tkYear, tkMonth - 1, 1).getDay();
+  for (let i = 0; i < first; i++) grid.insertAdjacentHTML("beforeend", "<div></div>");
+  tkCalData.days.forEach(function(d) {
+    const cls = "calendarDay" + (d.available ? "" : " disabled") + (tkSelectedDate === d.date ? " selected" : "");
+    const inner = "<div class='dayNumber'>" + d.day + "</div><div class='daySub'>" + (d.available ? "空き" : escapeHtml(d.reason || "")) + "</div>";
+    grid.insertAdjacentHTML("beforeend", d.available
+      ? "<button type='button' class='" + cls + "' onclick=\"selectTicketDate('" + d.date + "')\">" + inner + "</button>"
+      : "<div class='" + cls + "'>" + inner + "</div>");
+  });
+}
+
+async function selectTicketDate(dateText) {
+  tkSelectedDate = dateText;
+  renderTicketGrid();
+  document.getElementById("tkClassArea").classList.remove("hidden");
+  document.getElementById("tkClassDate").textContent = mdLabel(dateText) + " の予約できるクラス";
+  const area = document.getElementById("tkClassList");
+  area.innerHTML = "<div class='empty'>読み込み中...</div>";
+  try {
+    const classes = await callApi("getTicketAvailableClasses", { studentId: ticketStudentId, dateText: dateText });
+    area.innerHTML = classes.length ? "" : "<div class='empty'>予約できるクラスはありません。</div>";
+    classes.forEach(function(c) {
+      area.insertAdjacentHTML("beforeend",
+        "<button type='button' class='classRow' style='width:100%;text-align:left;background:white;cursor:pointer;' onclick=\"reserveTicket('" + c.classId + "', '" + escapeHtml(c.start) + "')\">" +
+        "<div class='lessonName'>" + escapeHtml(c.start) + "〜" + escapeHtml(c.end) + "</div><div class='sub'>残席" + c.remaining + "</div></button>");
+    });
+  } catch (error) {
+    area.innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
+  }
+}
+
+async function reserveTicket(classId, start) {
+  if (!confirm(mdLabel(tkSelectedDate) + " " + start + " のクラスを予約しますか？")) return;
+  try {
+    await callApi("reserveTicket", { studentId: ticketStudentId, dateText: tkSelectedDate, classId: classId });
+    alert("予約しました。");
+    await refreshTicketSummary();
+    loadTicketMonth();
+    loadTicketSummaries();
+  } catch (error) {
+    alert(error.message || String(error));
+  }
+}
+
+async function cancelTicket(reservationId) {
+  if (!confirm("この予約をキャンセルします（チケットは減りません）。よろしいですか？")) return;
+  try {
+    await callApi("cancelTicketReservation", { reservationId: reservationId });
+    await refreshTicketSummary();
+    loadTicketMonth();
+  } catch (error) {
+    alert(error.message || String(error));
   }
 }
 
