@@ -63,7 +63,7 @@
 </head>
 <body>
 
-<div class="header"><h1>トランポリン教室 欠席・振替</h1></div>
+<div class="header"><h1 id="headerTitle">トランポリン教室 欠席・振替</h1></div>
 
 <div class="main">
 
@@ -80,6 +80,38 @@
     </label>
     <button class="primary" onclick="submitLinkCode()">連携する</button>
     <div id="linkError" class="error hidden"></div>
+    <div class="sub" style="margin-top:18px;">まだ教室に通っていない方は、こちらから体験・入会をお申し込みいただけます。</div>
+    <button class="secondary" style="width:100%;margin-top:8px;" onclick="openApply()">体験・入会のお申込み</button>
+  </div>
+
+  <!-- 体験・入会のお申込み（店内QRから） -->
+  <div id="applyPage" class="card hidden">
+    <h2 style="margin-top:0;">体験・入会のお申込み</h2>
+    <div class="notice">空きのあるクラスは<b>体験のお申込み</b>になります。満席のクラスは<b>空き待ちのご予約</b>（第3希望まで）になり、空きが出たら受付順に公式LINEでご連絡します。</div>
+
+    <div id="apMine"></div>
+
+    <h3 style="font-size:15px; margin:18px 0 0;">空き状況</h3>
+    <div id="apVacancy"><div class="loadingSmall">読み込み中...</div></div>
+
+    <h3 style="font-size:15px; margin:22px 0 0;">お申込み</h3>
+    <label>保護者のお名前<input id="apGuardian" autocomplete="name"></label>
+    <label>電話番号<input id="apPhone" type="tel" inputmode="tel" autocomplete="tel"></label>
+    <div id="apChildren"></div>
+    <button class="secondary" style="margin-top:10px;" onclick="addApplyChild()">＋ ご兄弟もいっしょに申し込む</button>
+
+    <label>第1希望<select id="apChoice1" onchange="updateApplyMode()"></select></label>
+    <div id="apModeNote" class="sub"></div>
+    <div id="apMoreChoices" class="hidden">
+      <label>第2希望（任意）<select id="apChoice2"></select></label>
+      <label>第3希望（任意）<select id="apChoice3"></select></label>
+    </div>
+    <label>ご質問・ご要望など（任意）<input id="apNote"></label>
+    <div class="sub" style="margin-top:12px;">ご入力いただいた情報は、教室の体験・入会のご案内と、入会後の教室の運営にのみ使用します。</div>
+    <button class="primary" id="apSubmit" onclick="submitApply()">申し込む</button>
+    <div id="apError" class="error hidden"></div>
+
+    <div class="sub" style="margin-top:22px;">すでに教室に通っている方は、<a href="#" onclick="goMemberFromApply();return false;">こちら（マイページ）</a>からお手続きください。</div>
   </div>
 
   <!-- ホーム -->
@@ -335,7 +367,7 @@ let homeData = null;
 
 function showPage(id) {
   ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
-   "existingTransferPage", "reservedTransferPage", "calendarPage", "vacancyPage", "classChangePage", "siblingPage", "ticketPage", "fatalError"
+   "existingTransferPage", "reservedTransferPage", "calendarPage", "vacancyPage", "classChangePage", "siblingPage", "ticketPage", "applyPage", "fatalError"
   ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
@@ -408,9 +440,13 @@ async function init() {
 
     if (!res.success) { fatal(res.error); return; }
 
+    lastMigrateToken = res.data.migrateToken || "";
     if (res.data.linked) {
       parentToken = res.data.token;
       await loadHome();
+      if (isApplyMode()) openSibling();
+    } else if (isApplyMode()) {
+      openApply();
     } else if (res.data.migrateToken) {
       // 以前のマイページの連携を引き継ぐ（旧マイページを一瞬開いて、すぐこのページに戻ってくる）
       setStatus("以前の連携を引き継いでいます...");
@@ -496,6 +532,165 @@ let absenceSelectedStudents = {};
 let absenceLessonsData = null;
 let absenceSelectedDate = "";
 let lastRegisteredTransferRows = [];
+
+// ------------------------------------
+// 体験・入会のお申込み（店内QR：?apply=1）
+// ------------------------------------
+
+let lastMigrateToken = "";
+let applyChildren = [{}];
+let publicVacancy = null;
+
+function isApplyMode() { return new URLSearchParams(location.search).get("apply") === "1"; }
+
+// 申込みの画面から、すでに通っている方のマイページへ（以前の連携があれば引き継ぐ）
+function goMemberFromApply() {
+  document.getElementById("headerTitle").textContent = "トランポリン教室 欠席・振替";
+  if (lastMigrateToken) {
+    setStatus("以前の連携を確認しています...");
+    showPage("loadingPage");
+    location.replace("https://liff.line.me/" + OLD_LIFF_ID + "?migrate=" + encodeURIComponent(lastMigrateToken));
+  } else {
+    showPage("linkPage");
+  }
+}
+
+async function openApply() {
+  document.getElementById("headerTitle").textContent = "トランポリン教室 体験・入会";
+  showPage("applyPage");
+  window.scrollTo(0, 0);
+  renderApplyChildren();
+  loadMyApplications();
+  try {
+    publicVacancy = await callApi("getPublicVacancy", {});
+    let html = "", day = null;
+    publicVacancy.classes.forEach(function(c) {
+      if (c.weekday !== day) { day = c.weekday; html += "<div class='vacDay'>" + escapeHtml(day) + "曜日</div>"; }
+      const open = c.now > 0 || c.nextMonth > 0;
+      html += "<div class='vacRow'><div class='time'>" + escapeHtml(c.start) + "〜" + escapeHtml(c.end) + "</div>" +
+        "<div class='vacGrid'>" +
+          "<div class='" + (c.now > 0 ? "ok" : "ng") + "'><span class='vacLabel'>【現在】</span><br>" + vacText(c.now) + "</div>" +
+          "<div class='" + (c.nextMonth > 0 ? "ok" : "ng") + "'><span class='vacLabel'>【" + escapeHtml(monthDayLabel(publicVacancy.nextMonthFirst)) + "から】</span><br>" + vacText(c.nextMonth) + "</div>" +
+        "</div>" + (!open && c.waiting ? "<div class='sub'>空き待ち " + c.waiting + "名</div>" : "") + "</div>";
+    });
+    document.getElementById("apVacancy").innerHTML = html;
+    [1, 2, 3].forEach(function(n) {
+      document.getElementById("apChoice" + n).innerHTML = "<option value=''>" + (n === 1 ? "選んでください" : "（なし）") + "</option>" +
+        publicVacancy.classes.map(function(c) {
+          const label = c.weekday + "曜 " + c.start + "〜" + c.end + (n === 1 ? "（" + ((c.now > 0 || c.nextMonth > 0) ? "空きあり" : "満席") + "）" : "");
+          return "<option value='" + escapeHtml(c.classId) + "'>" + escapeHtml(label) + "</option>";
+        }).join("");
+    });
+    updateApplyMode();
+  } catch (error) {
+    document.getElementById("apVacancy").innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
+  }
+}
+
+async function loadMyApplications() {
+  const area = document.getElementById("apMine");
+  try {
+    const list = await callApi("getMyApplications", { idToken: currentIdToken });
+    area.innerHTML = list.length ? "<h3 style='font-size:15px; margin:18px 0 0;'>受付中のお申込み</h3>" + list.map(function(r) {
+      return "<div class='transferRow'><div class='lessonName'>" + escapeHtml(r.children.join("・")) + "</div>" +
+        "<div class='sub'>" + escapeHtml(r.applyKind === "体験申込" ? "体験のお申込み" : "空き待ち") + "・" + escapeHtml(r.status) + "（受付 " + escapeHtml(r.receivedAt) + "）</div>" +
+        "<div class='sub'>" + r.choices.map(function(c) {
+          return "第" + c.rank + "希望：" + escapeHtml(c.label) + (c.position > 0 ? "（" + c.position + "番目）" : "");
+        }).join("<br>") + "</div>" +
+        "<button class='danger' style='margin-top:10px;' onclick=\"cancelApply('" + escapeHtml(r.id) + "')\">このお申込みを取り消す</button></div>";
+    }).join("") : "";
+  } catch (error) {
+    area.innerHTML = "";
+  }
+}
+
+function readApplyChildren() {
+  applyChildren = applyChildren.map(function(c, i) {
+    const v = function(id) { const el = document.getElementById(id + i); return el ? el.value : ""; };
+    return { kana: v("apKana"), name: v("apName"), gender: v("apGender"), birthday: v("apBirthday"), experience: v("apExp") };
+  });
+}
+function addApplyChild() { readApplyChildren(); applyChildren.push({}); renderApplyChildren(); }
+function removeApplyChild(i) { readApplyChildren(); applyChildren.splice(i, 1); renderApplyChildren(); }
+
+function renderApplyChildren() {
+  document.getElementById("apChildren").innerHTML = applyChildren.map(function(c, i) {
+    return "<div class='childCard'><div class='toolbar'><strong>お子さま" + (applyChildren.length > 1 ? "（" + (i + 1) + "人目）" : "") + "</strong>" +
+      (applyChildren.length > 1 ? "<button class='secondary' onclick='removeApplyChild(" + i + ")'>削除</button>" : "") + "</div>" +
+      "<label>ふりがな<input id='apKana" + i + "' value='" + escapeHtml(c.kana || "") + "'></label>" +
+      "<label>お名前<input id='apName" + i + "' value='" + escapeHtml(c.name || "") + "'></label>" +
+      "<label>性別<select id='apGender" + i + "'>" + ["", "男", "女"].map(function(g) {
+        return "<option value='" + g + "'" + (g === (c.gender || "") ? " selected" : "") + ">" + (g || "選んでください") + "</option>";
+      }).join("") + "</select></label>" +
+      "<label>生年月日<input type='date' id='apBirthday" + i + "' value='" + escapeHtml(c.birthday || "") + "'></label>" +
+      "<label>習い事・運動経験（任意）<input id='apExp" + i + "' value='" + escapeHtml(c.experience || "") + "'></label></div>";
+  }).join("");
+}
+
+function applyHasSpace() {
+  const id = document.getElementById("apChoice1").value;
+  const c = publicVacancy && publicVacancy.classes.find(function(x) { return x.classId === id; });
+  return !!c && (c.now > 0 || c.nextMonth > 0);
+}
+
+function updateApplyMode() {
+  const id = document.getElementById("apChoice1").value;
+  const space = applyHasSpace();
+  document.getElementById("apMoreChoices").classList.toggle("hidden", !id || space);
+  document.getElementById("apModeNote").textContent = !id ? "" :
+    space ? "このクラスは空きがあります。体験のお申込みになります。日程は公式LINEでご相談します。" : "このクラスは満席です。空き待ちのご予約になります（第3希望まで選べます）。";
+  document.getElementById("apSubmit").textContent = !id ? "申し込む" : space ? "体験を申し込む" : "空き待ちを予約する";
+}
+
+async function submitApply() {
+  const errorBox = document.getElementById("apError");
+  const showError = function(text) { errorBox.textContent = text; errorBox.classList.remove("hidden"); };
+  errorBox.classList.add("hidden");
+  readApplyChildren();
+  const guardianName = document.getElementById("apGuardian").value.trim();
+  const phone = document.getElementById("apPhone").value.trim();
+  if (!guardianName) { showError("保護者のお名前を入力してください。"); return; }
+  if (phone.replace(/[^0-9]/g, "").length < 10) { showError("電話番号を正しく入力してください。"); return; }
+  if (applyChildren.some(function(c) { return !c.kana.trim() || !c.name.trim() || !c.birthday; })) {
+    showError("お子さまのふりがな・お名前・生年月日を入力してください。"); return;
+  }
+  const space = applyHasSpace();
+  const choices = (space ? [1] : [1, 2, 3]).map(function(n) { return document.getElementById("apChoice" + n).value; }).filter(Boolean);
+  if (!choices.length) { showError("第1希望のクラスを選んでください。"); return; }
+  if (new Set(choices).size !== choices.length) { showError("同じクラスが複数の希望に入っています。"); return; }
+
+  const names = applyChildren.map(function(c) { return c.name; }).join("・");
+  if (!confirm(names + " さんの" + (space ? "体験" : "空き待ち") + "を申し込みます。よろしいですか？")) return;
+
+  const button = document.getElementById("apSubmit");
+  button.disabled = true;
+  try {
+    await callApi("publicApply", { idToken: currentIdToken, guardianName: guardianName, phone: phone, children: applyChildren,
+      choices: choices, note: document.getElementById("apNote").value });
+    alert(space ? "体験のお申込みを受け付けました。公式LINEで日程のご連絡をします。" : "空き待ちのご予約を受け付けました。空きが出たら、受付順に公式LINEでご連絡します。");
+    applyChildren = [{}];
+    renderApplyChildren();
+    [1, 2, 3].forEach(function(n) { document.getElementById("apChoice" + n).value = ""; });
+    document.getElementById("apNote").value = "";
+    updateApplyMode();
+    loadMyApplications();
+    window.scrollTo(0, 0);
+  } catch (error) {
+    showError(error.message || String(error));
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function cancelApply(entryId) {
+  if (!confirm("このお申込みを取り消します。取り消すと順番も無くなります。よろしいですか？")) return;
+  try {
+    await callApi("cancelMyApplication", { idToken: currentIdToken, entryId: entryId });
+    loadMyApplications();
+  } catch (error) {
+    alert(error.message || String(error));
+  }
+}
 
 function isTicketChild(s) { return s.studentType === "チケット"; }
 
