@@ -78,6 +78,8 @@
 
   <div id="linkPage" class="card hidden">
     <h2 style="margin-top:0;">初回連携</h2>
+    <div id="migrateNotice" class="warning hidden" style="margin-bottom:12px;">以前のマイページの連携が、このLINEでは見つかりませんでした。<br>
+    ご家族の別のスマホ（別のLINE）で連携している場合などは、公式LINEのトークで「<b>追加コード</b>」とお送りください。届いたコードを下に入力すると、このスマホでも使えるようになります。</div>
     <div class="notice">スタッフからお伝えした6桁の連携コードを入力してください。次回以降は入力不要です。<br>
     コードが無い・有効期限が切れた場合は、公式LINEのトークで「コード再発行」とお送りください。</div>
     <label>連携コード
@@ -475,6 +477,8 @@ async function init() {
       setStatus("以前の連携を引き継いでいます...");
       location.replace("https://liff.line.me/" + OLD_LIFF_ID + "?migrate=" + encodeURIComponent(res.data.migrateToken));
     } else {
+      // 引き継ぎを試したのに連携が見つからなかった人には、追加コードの案内を出す
+      if (res.data.migrateTried) document.getElementById("migrateNotice").classList.remove("hidden");
       showPage("linkPage");
     }
   } catch (error) {
