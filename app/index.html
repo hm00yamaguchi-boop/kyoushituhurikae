@@ -206,6 +206,9 @@
     <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
     <h2 style="margin-top:0;">欠席登録</h2>
 
+    <!-- 登録済みの欠席（やはり出席できるようになったときの取り消し） -->
+    <div id="myAbsences"></div>
+
     <div id="absenceStep1">
       <div class="notice">欠席する生徒を選択してください。兄弟姉妹は複数選択できます。</div>
       <div id="absenceStudentChoices"></div>
@@ -786,7 +789,41 @@ async function submitPark() {
 
 function isTicketChild(s) { return s.studentType === "チケット"; }
 
+// 登録済みの欠席の一覧と取り消し（2026-10-19）
+async function loadMyAbsences() {
+  const area = document.getElementById("myAbsences");
+  area.innerHTML = "";
+  try {
+    const list = await callApi("getMyAbsences", {});
+    if (!list.length) return;
+    area.innerHTML = "<h3 style='font-size:15px; margin:4px 0 0;'>登録済みの欠席</h3>" +
+      "<div class='sub'>やはり出席できるようになったときは、ここから取り消せます（当日の受付締切まで）。</div>" +
+      list.map(function(a) {
+        return "<div class='transferRow'><div class='lessonName'>" + escapeHtml(a.studentName) + "</div>" +
+          "<div class='sub'>" + escapeHtml(a.date.replace(/^\d{4}-0?(\d+)-0?(\d+)$/, "$1月$2日")) + "（" + escapeHtml(a.classLabel) + "）</div>" +
+          (a.canCancel
+            ? "<button class='secondary' style='margin-top:8px;' onclick=\"cancelMyAbsence('" + escapeHtml(a.absenceId) + "')\">欠席を取り消す（出席する）</button>"
+            : "<div class='sub' style='color:#9a3412;'>" + escapeHtml(a.reason) + "</div>") +
+          "</div>";
+      }).join("") + "<h3 style='font-size:15px; margin:20px 0 0;'>新しく欠席を登録する</h3>";
+  } catch (error) {
+    area.innerHTML = "";
+  }
+}
+
+async function cancelMyAbsence(absenceId) {
+  if (!confirm("この欠席を取り消して、出席にします。\nこの欠席の振替（未予約の分）も取り消されます。よろしいですか？")) return;
+  try {
+    await callApi("cancelMyAbsence", { absenceId: absenceId });
+    alert("欠席を取り消しました。レッスンでお待ちしています。");
+    loadMyAbsences();
+  } catch (error) {
+    alert(error.message || String(error));
+  }
+}
+
 function openAbsence() {
+  loadMyAbsences();
   absenceSelectedStudents = {};
   absenceLessonsData = null;
   absenceSelectedDate = "";
