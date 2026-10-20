@@ -50,6 +50,16 @@
   .daySub { font-size:9px; margin-top:3px; line-height:1.3; }
   .loadingSmall, .empty { text-align:center; color:#64748b; padding:20px 10px; font-size:13px; }
   .actionCard { word-break:keep-all; overflow-wrap:anywhere; }
+  .actionCard small { display:block; font-size:12.5px; color:#475569; line-height:1.45; }
+  /* ホームのボタンの色分け（①欠席・振替：青／②パーク利用：緑／③クラス・入会：オレンジ） */
+  .homeGroup { margin-top:22px; border-radius:14px; padding:12px; }
+  .homeGroup h3 { margin:0 0 10px; font-size:14px; display:flex; align-items:center; gap:6px; }
+  .homeGroup h3::before { content:""; width:6px; height:16px; border-radius:3px; background:currentColor; }
+  .homeGroup .actionGrid { margin-top:0; gap:10px; }
+  .homeGroup .actionCard { border-width:2px; min-height:84px; padding:13px; }
+  .g1 { background:#eff6ff; } .g1 h3 { color:#1d4ed8; } .g1 .actionCard { border-color:#93c5fd; } .g1 .actionCard strong { color:#1e40af; }
+  .g2 { background:#f0fdf4; } .g2 h3 { color:#15803d; } .g2 .actionCard { border-color:#86efac; } .g2 .actionCard strong { color:#166534; }
+  .g3 { background:#fff7ed; } .g3 h3 { color:#c2410c; } .g3 .actionCard { border-color:#fdba74; } .g3 .actionCard strong { color:#9a3412; }
   .rules { margin-top:22px; padding-top:16px; border-top:1px solid #e2e8f0; font-size:14px; line-height:1.7; }
   .rules h3 { margin:0 0 6px; font-size:16px; }
   .rules h4 { margin:14px 0 2px; font-size:14px; color:#203044; }
@@ -126,45 +136,53 @@
     <h2 style="margin-top:0;"><span id="homeGuardian"></span> 様</h2>
     <div id="homeChildren"></div>
 
-    <div class="actionGrid">
-      <button class="actionCard" onclick="openAbsence()">
-        <strong>欠席を登録</strong>
-        これから休む<wbr>レッスンを選択
-      </button>
-      <button class="actionCard" onclick="openExistingTransfers()">
-        <strong>振替予約</strong>
-        未予約の<wbr>振替を予約
-      </button>
-      <button class="actionCard" onclick="openReservedTransfers()">
-        <strong>予約済み振替</strong>
-        変更・キャンセル
-      </button>
-      <button class="actionCard" onclick="openPark()">
-        <strong>パーク利用</strong>
-        振替分で<wbr>パークを利用
-      </button>
+    <!-- ① 欠席・振替（青） -->
+    <div class="homeGroup g1">
+      <h3>欠席・振替</h3>
+      <div class="actionGrid">
+        <button class="actionCard" onclick="openAbsence()">
+          <strong>欠席を登録</strong>
+          <small>欠席の登録・<wbr>キャンセル</small>
+        </button>
+        <button class="actionCard" onclick="openExistingTransfers()">
+          <strong>振替を登録</strong>
+          <small>振替の予約・<wbr>変更・<wbr>キャンセル</small>
+        </button>
+        <button id="ticketActions" class="actionCard hidden" onclick="openTicket()">
+          <strong>チケット予約</strong>
+          <small>レッスンの予約・<wbr>残り回数の確認</small>
+        </button>
+      </div>
     </div>
 
-    <div id="ticketActions" class="actionGrid hidden" style="margin-top:12px;">
-      <button class="actionCard" onclick="openTicket()">
-        <strong>チケット予約</strong>
-        レッスンの予約・<wbr>残り回数の確認
-      </button>
+    <!-- ② パーク利用（緑） -->
+    <div class="homeGroup g2">
+      <h3>パーク利用</h3>
+      <div class="actionGrid">
+        <button class="actionCard" onclick="openPark()">
+          <strong>パーク利用</strong>
+          <small>振替分で<wbr>パークを利用</small>
+        </button>
+      </div>
     </div>
 
-    <div class="actionGrid" style="margin-top:12px;">
-      <button class="actionCard" onclick="openVacancy()">
-        <strong>空き状況</strong>
-        クラスごとの<wbr>空きを見る
-      </button>
-      <button class="actionCard" onclick="openClassChange()">
-        <strong>クラス変更</strong>
-        希望の予約・<wbr>順番の確認
-      </button>
-      <button class="actionCard" onclick="openSibling()">
-        <strong>ご兄弟の入会</strong>
-        体験・<wbr>空き待ちの<wbr>お申込み
-      </button>
+    <!-- ③ クラス・入会（オレンジ） -->
+    <div class="homeGroup g3">
+      <h3>クラス・入会</h3>
+      <div class="actionGrid">
+        <button class="actionCard" onclick="openVacancy()">
+          <strong>空き状況</strong>
+          <small>クラスごとの<wbr>空きを見る</small>
+        </button>
+        <button class="actionCard" onclick="openClassChange()">
+          <strong>クラス変更</strong>
+          <small>希望の予約・<wbr>順番の確認</small>
+        </button>
+        <button class="actionCard" onclick="openSibling()">
+          <strong>ご兄弟の入会</strong>
+          <small>体験・<wbr>空き待ちの<wbr>お申込み</small>
+        </button>
+      </div>
     </div>
 
     <!-- 教室カレンダー（今月・来月のみ。PCの営業カレンダー生成ツールの publish.py が毎朝自動更新） -->
@@ -237,22 +255,20 @@
     </div>
   </div>
 
-  <!-- 既存の未予約振替一覧 -->
+  <!-- 振替を登録（未予約の振替の予約と、予約済み振替の変更・キャンセルを1画面に） -->
   <div id="existingTransferPage" class="card hidden">
     <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
-    <h2 style="margin-top:0;">振替予約</h2>
+    <h2 style="margin-top:0;">振替を登録</h2>
+
+    <h3 style="font-size:15px; margin:14px 0 0;">これから予約する振替</h3>
     <div id="existingTransferLoading" class="loadingSmall">読み込み中...</div>
     <div id="existingTransferList"></div>
     <div id="existingTransferActions" class="hidden">
       <div id="existingTransferCount" class="countBar">選択中：0名</div>
       <button class="primary" onclick="startExistingTransfer()">振替日を選ぶ</button>
     </div>
-  </div>
 
-  <!-- 予約済み振替一覧 -->
-  <div id="reservedTransferPage" class="card hidden">
-    <a href="#" class="backLink" onclick="goHome();return false;">← 戻る</a>
-    <h2 style="margin-top:0;">予約済み振替</h2>
+    <h3 style="font-size:15px; margin:26px 0 8px; padding-top:16px; border-top:1px solid #e2e8f0;">予約済みの振替（変更・キャンセル）</h3>
     <div class="notice">変更・キャンセルする予約を選択してください。複数選択すると、まとめて同じ日・クラスへ変更できます。</div>
     <div id="reservedTransferLoading" class="loadingSmall">読み込み中...</div>
     <div id="reservedTransferList"></div>
@@ -395,7 +411,7 @@ let homeData = null;
 
 function showPage(id) {
   ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
-   "existingTransferPage", "reservedTransferPage", "calendarPage", "vacancyPage", "classChangePage", "siblingPage", "ticketPage", "applyPage", "parkPage", "fatalError"
+   "existingTransferPage","calendarPage", "vacancyPage", "classChangePage", "siblingPage", "ticketPage", "applyPage", "parkPage", "fatalError"
   ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
@@ -978,16 +994,23 @@ async function loadTransferDashboard() {
   return callApi("getTransferDashboard", {});
 }
 
+// 「振替を登録」画面：未予約の一覧と予約済みの一覧を、1回の読み込みで両方表示する
 async function openExistingTransfers() {
   selectedUnreservedRows = {};
+  reservedSelected = {};
   showPage("existingTransferPage");
   document.getElementById("existingTransferLoading").classList.remove("hidden");
   document.getElementById("existingTransferList").innerHTML = "";
   document.getElementById("existingTransferActions").classList.add("hidden");
+  document.getElementById("reservedTransferLoading").classList.remove("hidden");
+  document.getElementById("reservedTransferList").innerHTML = "";
+  document.getElementById("reservedTransferActions").classList.add("hidden");
 
   try {
     const data = await loadTransferDashboard();
     document.getElementById("existingTransferLoading").classList.add("hidden");
+    document.getElementById("reservedTransferLoading").classList.add("hidden");
+    renderReservedTransfers_(data);
 
     const area = document.getElementById("existingTransferList");
     if (!data.unreserved.length) { area.innerHTML = "<div class='empty'>現在、未予約の振替はありません。</div>"; return; }
@@ -1030,35 +1053,27 @@ function startExistingTransfer() {
   startTransferFlow(rows, "new", [], studentIds.length);
 }
 
-async function openReservedTransfers() {
-  reservedSelected = {};
-  showPage("reservedTransferPage");
-  document.getElementById("reservedTransferLoading").classList.remove("hidden");
-  document.getElementById("reservedTransferList").innerHTML = "";
-  document.getElementById("reservedTransferActions").classList.add("hidden");
+// 予約済み振替は「振替を登録」画面の下半分に表示する（画面は1つにまとめた）
+function openReservedTransfers() {
+  return openExistingTransfers();
+}
 
-  try {
-    const data = await loadTransferDashboard();
-    document.getElementById("reservedTransferLoading").classList.add("hidden");
+function renderReservedTransfers_(data) {
+  const area = document.getElementById("reservedTransferList");
+  if (!data.reserved.length) { area.innerHTML = "<div class='empty'>現在、予約済みの振替はありません。</div>"; return; }
 
-    const area = document.getElementById("reservedTransferList");
-    if (!data.reserved.length) { area.innerHTML = "<div class='empty'>現在、予約済みの振替はありません。</div>"; return; }
-
-    area.innerHTML = "";
-    data.reserved.forEach(function(item) {
-      const html =
-        "<label class='transferRow lessonChoice'>" +
-          "<input type='checkbox' value='" + item.rowNumber + "' onchange='toggleReserved(this)'>" +
-          "<div><div class='lessonName'>" + escapeHtml(item.studentName) + "</div>" +
-          "<div class='sub'>元のレッスン：" + escapeHtml(item.absenceDate) + "（" + escapeHtml(item.absenceClassId) + "）</div>" +
-          "<div class='sub'>振替日：" + escapeHtml(item.transferDate) + "　" + escapeHtml(item.classId) +
-          "<br>期限：" + escapeHtml(item.deadline || "") + "</div></div>" +
-        "</label>";
-      area.insertAdjacentHTML("beforeend", html);
-    });
-  } catch (error) {
-    fatal(error.message || String(error));
-  }
+  area.innerHTML = "";
+  data.reserved.forEach(function(item) {
+    const html =
+      "<label class='transferRow lessonChoice'>" +
+        "<input type='checkbox' value='" + item.rowNumber + "' onchange='toggleReserved(this)'>" +
+        "<div><div class='lessonName'>" + escapeHtml(item.studentName) + "</div>" +
+        "<div class='sub'>元のレッスン：" + escapeHtml(item.absenceDate) + "（" + escapeHtml(item.absenceClassId) + "）</div>" +
+        "<div class='sub'>振替日：" + escapeHtml(item.transferDate) + "　" + escapeHtml(item.classId) +
+        "<br>期限：" + escapeHtml(item.deadline || "") + "</div></div>" +
+      "</label>";
+    area.insertAdjacentHTML("beforeend", html);
+  });
 }
 
 function toggleReserved(input) {
