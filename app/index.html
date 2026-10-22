@@ -75,7 +75,8 @@
   .vacGrid .ng { background:#fff1f2; color:#be123c; font-weight:800; }
   /* ホーム：レッスン日（1日分だけ。◀▶で前後へ。札が無くても日付の位置が動かないよう同じ幅を空ける） */
   .childCard.compact { padding:10px 12px; }
-  .lessonPager { display:flex; align-items:center; gap:6px; margin-top:6px; }
+  .lessonPager { display:flex; align-items:center; gap:6px; margin-top:2px; }
+  .lessonCaption { font-size:11px; font-weight:700; color:#64748b; margin-top:4px; }
   .lessonPager button { flex:0 0 auto; width:34px; height:30px; border:1px solid #cbd5e1; border-radius:8px; background:white; color:#2563eb; font-size:13px; cursor:pointer; padding:0; }
   .lessonPager button:disabled { color:#cbd5e1; cursor:default; }
   .lessonBody { flex:1; min-width:0; overflow:hidden; display:flex; align-items:center; justify-content:center; gap:6px; height:30px; border-radius:8px; background:#f8fafc; font-weight:800; font-size:14px; white-space:nowrap; }
@@ -91,6 +92,7 @@
   .lessonBody.holiday .lessonTag { background:#64748b; color:white; }
   .lessonBody.muted { color:#94a3b8; font-weight:600; font-size:12px; }
   /* お知らせ（ポップアップ） */
+  .modalBack.hidden, .backLink.hidden { display:none; } /* .hidden より後に display:flex を書いているため、閉じられるように明示 */
   .modalBack { position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; padding:18px; z-index:50; }
   .modalBox { background:white; border-radius:14px; padding:20px; max-width:440px; width:100%; max-height:80vh; overflow:auto; }
   .modalBox h3 { margin:0 0 10px; font-size:17px; }
@@ -603,6 +605,7 @@ function renderHome(data) {
     const id = escapeHtml(s.studentId);
     div.innerHTML = "<div class='childName'>" + escapeHtml(s.studentName) + "</div>" +
       (isTicketChild(s) ? "<div class='sub' id='childSub" + id + "'>チケット（予約制）</div>" : "") +
+      "<div class='lessonCaption'>レッスンの予定</div>" +
       "<div class='lessonPager'><button id='lessonPrev" + id + "' onclick=\"moveLesson('" + id + "',-1)\" disabled>◀</button>" +
       "<div class='lessonBody muted' id='lessonBody" + id + "'>レッスン日を読み込み中…</div>" +
       "<button id='lessonNext" + id + "' onclick=\"moveLesson('" + id + "',1)\" disabled>▶</button></div>";
