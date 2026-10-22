@@ -620,7 +620,7 @@ function renderHome(data) {
 }
 
 // ------------------------------------
-// ホームのレッスン日（今日から2か月先まで）と、教室からのお知らせ
+// ホームのレッスン日（今日から翌々月の月末まで）と、教室からのお知らせ
 // ------------------------------------
 let lessonSchedule = {};   // 生徒ID → [{date, label, tag}]
 let lessonIndex = {};      // 生徒ID → 表示中の番号
@@ -649,7 +649,7 @@ function renderLesson(studentId) {
   const next = document.getElementById("lessonNext" + studentId);
   if (!items.length) {
     body.className = "lessonBody muted";
-    body.textContent = "2か月以内のレッスン予定はありません";
+    body.textContent = "今後のレッスン予定はありません";
     prev.disabled = true; next.disabled = true;
     return;
   }
