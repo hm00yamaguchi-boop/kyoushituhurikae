@@ -73,6 +73,32 @@
   .vacLabel { white-space:nowrap; font-size:12px; letter-spacing:-0.02em; }
   .vacGrid .ok { background:#f0fdf4; color:#15803d; font-weight:800; }
   .vacGrid .ng { background:#fff1f2; color:#be123c; font-weight:800; }
+  /* ホーム：レッスン日（1日分だけ。◀▶で前後へ。札が無くても日付の位置が動かないよう同じ幅を空ける） */
+  .childCard.compact { padding:10px 12px; }
+  .lessonPager { display:flex; align-items:center; gap:6px; margin-top:6px; }
+  .lessonPager button { flex:0 0 auto; width:34px; height:30px; border:1px solid #cbd5e1; border-radius:8px; background:white; color:#2563eb; font-size:13px; cursor:pointer; padding:0; }
+  .lessonPager button:disabled { color:#cbd5e1; cursor:default; }
+  .lessonBody { flex:1; min-width:0; overflow:hidden; display:flex; align-items:center; justify-content:center; gap:6px; height:30px; border-radius:8px; background:#f8fafc; font-weight:800; font-size:14px; white-space:nowrap; }
+  .lessonBody .lead, .lessonTag { width:38px; flex:0 0 38px; }
+  .lessonTag { text-align:center; font-size:11px; font-weight:800; border-radius:999px; padding:2px 0; }
+  .lessonTag.spacer { visibility:hidden; }
+  .lessonBody.absent { background:#fef2f2; color:#b91c1c; }
+  .lessonBody.absent .date { text-decoration:line-through; }
+  .lessonBody.absent .lessonTag { background:#dc2626; color:white; }
+  .lessonBody.transfer { background:#f0fdf4; color:#166534; }
+  .lessonBody.transfer .lessonTag { background:#15803d; color:white; }
+  .lessonBody.holiday { background:repeating-linear-gradient(45deg,#f8fafc 0 6px,#eef2f7 6px 12px); color:#94a3b8; }
+  .lessonBody.holiday .lessonTag { background:#64748b; color:white; }
+  .lessonBody.muted { color:#94a3b8; font-weight:600; font-size:12px; }
+  /* お知らせ（ポップアップ） */
+  .modalBack { position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; padding:18px; z-index:50; }
+  .modalBox { background:white; border-radius:14px; padding:20px; max-width:440px; width:100%; max-height:80vh; overflow:auto; }
+  .modalBox h3 { margin:0 0 10px; font-size:17px; }
+  .noticeItem { border-left:4px solid #f59e0b; background:#fffbeb; padding:10px 12px; border-radius:8px; margin-top:8px; font-size:14px; line-height:1.7; }
+  /* 空きのご案内 */
+  .offerLesson { display:flex; align-items:center; gap:8px; border:1px solid #e2e8f0; border-radius:9px; padding:9px 11px; margin-top:6px; font-size:14px; }
+  .offerLesson.rest { background:#f1f5f9; color:#64748b; }
+  .offerLesson input { width:20px; height:20px; margin:0; }
   .backLink { color:#2563eb; text-decoration:none; font-size:13px; display:inline-block; margin-bottom:10px; }
 </style>
 </head>
@@ -388,10 +414,25 @@
     <div id="parkResult"></div>
   </div>
 
+  <!-- 空きのご案内（LINEのお知らせのリンク ?offer=受付ID から） -->
+  <div id="offerPage" class="card hidden">
+    <a href="#" class="backLink" id="offerBack" onclick="goHome();return false;">← ホームへ</a>
+    <h2 style="margin-top:0;">空きのご案内</h2>
+    <div id="offerBody"><div class="loadingSmall">読み込み中...</div></div>
+  </div>
+
   <div id="fatalError" class="card hidden">
     <div class="error" id="fatalErrorText"></div>
   </div>
 
+</div>
+
+<div id="noticeModal" class="modalBack hidden">
+  <div class="modalBox">
+    <h3>教室からのお知らせ</h3>
+    <div id="noticeList"></div>
+    <button class="primary" onclick="closeNotices()">閉じる</button>
+  </div>
 </div>
 
 <script>
@@ -411,7 +452,7 @@ let homeData = null;
 
 function showPage(id) {
   ["loadingPage", "linkPage", "homePage", "absencePage", "afterAbsencePage",
-   "existingTransferPage","calendarPage", "vacancyPage", "classChangePage", "siblingPage", "ticketPage", "applyPage", "parkPage", "fatalError"
+   "existingTransferPage","calendarPage", "vacancyPage", "classChangePage", "siblingPage", "ticketPage", "applyPage", "parkPage", "offerPage", "fatalError"
   ].forEach(function(pageId) { document.getElementById(pageId).classList.add("hidden"); });
   document.getElementById(id).classList.remove("hidden");
 }
@@ -489,7 +530,11 @@ async function init() {
       parentToken = res.data.token;
       // ログインの返事にホームの情報が入っていれば、そのまま表示（問い合わせ1回分速い）
       if (res.data.home) renderHome(res.data.home); else await loadHome();
-      if (isApplyMode()) openSibling();
+      if (offerIdParam()) openOffer(offerIdParam());
+      else if (isApplyMode()) openSibling();
+    } else if (offerIdParam()) {
+      // 店内QRから申し込んだ方（まだ家庭とつながっていない）は、LINEの本人確認でご案内を開く
+      openOffer(offerIdParam());
     } else if (isApplyMode()) {
       openApply();
     } else if (res.data.migrateToken) {
@@ -554,9 +599,13 @@ function renderHome(data) {
   area.innerHTML = "";
   (data.students || []).forEach(function(s) {
     const div = document.createElement("div");
-    div.className = "childCard";
-    div.innerHTML = "<div class='childName'>" + escapeHtml(s.studentName) + "</div><div class='sub' id='childSub" + escapeHtml(s.studentId) + "'>" +
-      escapeHtml(isTicketChild(s) ? "チケット（予約制）" : s.classId) + "</div>";
+    div.className = "childCard compact";
+    const id = escapeHtml(s.studentId);
+    div.innerHTML = "<div class='childName'>" + escapeHtml(s.studentName) + "</div>" +
+      (isTicketChild(s) ? "<div class='sub' id='childSub" + id + "'>チケット（予約制）</div>" : "") +
+      "<div class='lessonPager'><button id='lessonPrev" + id + "' onclick=\"moveLesson('" + id + "',-1)\" disabled>◀</button>" +
+      "<div class='lessonBody muted' id='lessonBody" + id + "'>レッスン日を読み込み中…</div>" +
+      "<button id='lessonNext" + id + "' onclick=\"moveLesson('" + id + "',1)\" disabled>▶</button></div>";
     area.appendChild(div);
   });
 
@@ -564,6 +613,225 @@ function renderHome(data) {
   document.getElementById("ticketActions").classList.toggle("hidden", !hasTicket);
   showPage("homePage");
   if (hasTicket) loadTicketSummaries();
+  loadLessonSchedule();
+}
+
+// ------------------------------------
+// ホームのレッスン日（今日から2か月先まで）と、教室からのお知らせ
+// ------------------------------------
+let lessonSchedule = {};   // 生徒ID → [{date, label, tag}]
+let lessonIndex = {};      // 生徒ID → 表示中の番号
+let pendingNoticeIds = [];
+
+async function loadLessonSchedule() {
+  try {
+    const data = await callApi("getLessonSchedule", {});
+    (data.students || []).forEach(function(s) {
+      lessonSchedule[s.studentId] = s.items || [];
+      lessonIndex[s.studentId] = 0;
+      renderLesson(s.studentId);
+    });
+    showNotices(data.notices || []);
+  } catch (error) {
+    Object.keys(lessonIndex).length || document.querySelectorAll(".lessonBody").forEach(function(el) { el.textContent = "レッスン日を読み込めませんでした"; });
+  }
+}
+
+function renderLesson(studentId) {
+  const items = lessonSchedule[studentId] || [];
+  const i = lessonIndex[studentId] || 0;
+  const body = document.getElementById("lessonBody" + studentId);
+  if (!body) return;
+  const prev = document.getElementById("lessonPrev" + studentId);
+  const next = document.getElementById("lessonNext" + studentId);
+  if (!items.length) {
+    body.className = "lessonBody muted";
+    body.textContent = "2か月以内のレッスン予定はありません";
+    prev.disabled = true; next.disabled = true;
+    return;
+  }
+  const item = items[i];
+  const cls = { "欠席": "absent", "振替": "transfer", "休講": "holiday" }[item.tag] || "";
+  body.className = "lessonBody " + cls;
+  body.innerHTML = "<span class='lead'></span><span class='date'>" + escapeHtml(item.label) + "</span>" +
+    "<span class='lessonTag" + (item.tag ? "" : " spacer") + "'>" + escapeHtml(item.tag || "-") + "</span>";
+  prev.disabled = i <= 0;
+  next.disabled = i >= items.length - 1;
+}
+
+function moveLesson(studentId, step) {
+  const items = lessonSchedule[studentId] || [];
+  lessonIndex[studentId] = Math.max(0, Math.min(items.length - 1, (lessonIndex[studentId] || 0) + step));
+  renderLesson(studentId);
+}
+
+function showNotices(notices) {
+  if (!notices.length) return;
+  pendingNoticeIds = notices.map(function(n) { return n.id; });
+  document.getElementById("noticeList").innerHTML = notices.map(function(n) {
+    return "<div class='noticeItem'>" + escapeHtml(n.text) + "<div class='sub'>" + escapeHtml(n.at) + "</div></div>";
+  }).join("");
+  document.getElementById("noticeModal").classList.remove("hidden");
+}
+
+async function closeNotices() {
+  document.getElementById("noticeModal").classList.add("hidden");
+  const ids = pendingNoticeIds;
+  pendingNoticeIds = [];
+  if (ids.length) { try { await callApi("markNoticesRead", { ids: ids }); } catch (e) { /* 次に開いたときにもう一度出る */ } }
+}
+
+// ------------------------------------
+// 空きのご案内：移る日・入会する日を選ぶ
+// ------------------------------------
+let offerData = null;
+let offerPreview = null;
+
+function offerIdParam() { return new URLSearchParams(location.search).get("offer") || ""; }
+
+// 家庭とつながっている方はトークン、店内QRから申し込んだ方はLINEのIDトークンで確認する
+function offerAuthParams() {
+  return parentToken ? { token: parentToken, idToken: currentIdToken } : { idToken: currentIdToken };
+}
+
+async function offerApi(action, params) {
+  const url = API_URL + "?action=" + encodeURIComponent(action) +
+    "&payload=" + encodeURIComponent(JSON.stringify(Object.assign(offerAuthParams(), params || {})));
+  const response = await fetch(url, { method: "GET" });
+  if (!response.ok) throw new Error("サーバーとの通信に失敗しました（ステータス " + response.status + "）。");
+  const res = await response.json();
+  if (!res.success) throw new Error(res.error);
+  return res.data;
+}
+
+async function openOffer(entryId) {
+  showPage("offerPage");
+  document.getElementById("offerBack").classList.toggle("hidden", !parentToken);
+  const body = document.getElementById("offerBody");
+  body.innerHTML = "<div class='loadingSmall'>読み込み中...</div>";
+  offerPreview = null;
+  try {
+    offerData = await offerApi("getOffer", { entryId: entryId });
+  } catch (error) {
+    body.innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
+    return;
+  }
+  const o = offerData;
+  if (!o.open) {
+    body.innerHTML = "<div class='warning'>" + (o.status === "完了" ? "このご案内は、お返事をいただき手続きが済んでいます。" : "このご案内は終了しました（お返事の期限が過ぎたか、取り消されました）。ご不明な点は教室へご連絡ください。") + "</div>";
+    return;
+  }
+  const many = o.children.length > o.seats;
+  let html = "<div class='notice'><b>" + escapeHtml(o.classLabel) + "</b> のクラスに空きが出ました（" + o.seats + "名分）。<br>" +
+    escapeHtml(o.deadlineLabel) + "までにお返事ください。それまでお席を確保しています。</div>";
+  html += "<h3 style='font-size:15px;margin:16px 0 4px;'>お子さま</h3>" + o.children.map(function(c) {
+    return "<div class='lessonRow'><label class='lessonChoice' style='margin:0;'>" +
+      (many ? "<input type='checkbox' class='offerChild' value='" + c.no + "'>" : "<input type='checkbox' class='offerChild' value='" + c.no + "' checked disabled>") +
+      "<span class='lessonName'>" + escapeHtml(c.name) + "</span></label>" + (o.isChange ? "" : offerChildFields(c)) + "</div>";
+  }).join("") + (many ? "<div class='sub'>空きは" + o.seats + "名分です。" + o.seats + "名まで選んでください。</div>" : "");
+  html += "<label>" + (o.isChange ? "クラスを移る日" : "入会する日（最初のレッスンの日）") +
+    "<select id='offerDate' onchange='onOfferDateChange()'><option value=''>選んでください</option>" +
+    o.dates.map(function(d) { return "<option value='" + d.date + "'>" + escapeHtml(d.label) + "</option>"; }).join("") + "</select></label>";
+  html += "<div id='offerDetail'></div>";
+  html += "<button class='primary' id='offerSubmit' onclick='submitOffer()' disabled>この内容で申し込む</button><div id='offerError' class='error hidden'></div>";
+  body.innerHTML = html;
+}
+
+function offerChildFields(c) {
+  let f = "";
+  if (!c.kana) f += "<label>ふりがな<input class='offerKana' data-no='" + c.no + "'></label>";
+  if (!c.gender) f += "<label>性別<select class='offerGender' data-no='" + c.no + "'><option value=''>選んでください</option><option>男</option><option>女</option></select></label>";
+  if (!c.birthday) f += "<label>生年月日<input type='date' class='offerBirthday' data-no='" + c.no + "'></label>";
+  return f;
+}
+
+async function onOfferDateChange() {
+  const date = document.getElementById("offerDate").value;
+  const detail = document.getElementById("offerDetail");
+  const submit = document.getElementById("offerSubmit");
+  offerPreview = null;
+  submit.disabled = !date;
+  detail.innerHTML = "";
+  if (!date || !offerData.isChange) return;
+  submit.disabled = true;
+  detail.innerHTML = "<div class='loadingSmall'>確認しています...</div>";
+  try {
+    offerPreview = await offerApi("previewOffer", { entryId: offerData.id, date: date });
+  } catch (error) {
+    detail.innerHTML = "<div class='error'>" + escapeHtml(error.message || String(error)) + "</div>";
+    return;
+  }
+  detail.innerHTML = offerPreview.students.map(function(p) {
+    let h = "<div class='countBar' style='margin-bottom:4px;'>" + escapeHtml(p.studentName) + "さん　" + escapeHtml(p.monthLabel) + "のレッスン</div>";
+    h += p.lessons.map(function(l) {
+      const where = l.side === "old" ? "今のクラス" : "新しいクラス";
+      if (l.autoRest) return "<div class='offerLesson rest'>" + escapeHtml(l.label) + "（" + where + "）<b>お休み</b></div>";
+      if (p.extra > 0 && l.choosable) return "<label class='offerLesson'><input type='checkbox' class='offerRest' data-student='" + escapeHtml(p.studentId) + "' value='" + l.date + "'>" + escapeHtml(l.label) + "（" + where + "）</label>";
+      return "<div class='offerLesson'>" + escapeHtml(l.label) + "（" + where + "）</div>";
+    }).join("");
+    if (p.lessons.some(function(l) { return l.autoRest; })) {
+      h += "<div class='sub'>同じ週に今のクラスのレッスンがあるため、その週の新しいクラスはお休みになります（振替はありません）。</div>";
+    }
+    if (p.extra > 0) {
+      h += "<div class='warning' style='margin-top:8px;'>クラスの移動で、" + escapeHtml(p.monthLabel) + "はお支払いいただいた回数（" + p.base + "回）より" + p.extra + "回多くレッスンが受けられます。" +
+        "お支払いの回数に合わせるため、お休みにする日を<b>" + p.extra + "つ</b>選んでください（振替はありません）。</div>";
+      if (!p.canChooseEnough) h += "<div class='error'>お休みにできる日が足りません。別の日を選ぶか、教室へご連絡ください。</div>";
+    }
+    if (p.absencesToCancel.length) {
+      h += "<div class='notice' style='margin-top:8px;'>次の欠席の登録は、新しいクラスでは不要になるため取り消します：" + p.absencesToCancel.map(escapeHtml).join("・") + "</div>";
+    }
+    return "<div style='margin-top:12px;'>" + h + "</div>";
+  }).join("");
+  submit.disabled = false;
+}
+
+async function submitOffer() {
+  const o = offerData;
+  const errorBox = document.getElementById("offerError");
+  errorBox.classList.add("hidden");
+  const date = document.getElementById("offerDate").value;
+  if (!date) return;
+  const childNos = Array.prototype.slice.call(document.querySelectorAll(".offerChild")).filter(function(el) { return el.checked; }).map(function(el) { return Number(el.value); });
+  const fail = function(msg) { errorBox.textContent = msg; errorBox.classList.remove("hidden"); };
+  if (!childNos.length) return fail("お子さまを選んでください。");
+  if (childNos.length > o.seats) return fail("空きは" + o.seats + "名分です。お子さまを" + o.seats + "名まで選んでください。");
+
+  const answer = { date: date, childNos: childNos, rests: {}, children: {} };
+  if (o.isChange) {
+    if (!offerPreview) return fail("日付を選び直してください。");
+    for (const p of offerPreview.students) {
+      const picked = Array.prototype.slice.call(document.querySelectorAll(".offerRest")).filter(function(el) { return el.checked && el.dataset.student === p.studentId; }).map(function(el) { return el.value; });
+      if (p.extra > 0 && picked.length !== p.extra) return fail(p.studentName + "さんのお休みにする日を" + p.extra + "つ選んでください。");
+      answer.rests[p.studentId] = picked;
+    }
+  } else {
+    for (const no of childNos) {
+      const v = function(cls) { const el = document.querySelector("." + cls + "[data-no='" + no + "']"); return el ? el.value.trim() : null; };
+      const info = { kana: v("offerKana"), gender: v("offerGender"), birthday: v("offerBirthday") };
+      if (info.kana === "" || info.gender === "" || info.birthday === "") return fail("お子さまのふりがな・性別・生年月日を入力してください。");
+      answer.children[no] = info;
+    }
+  }
+
+  const label = document.getElementById("offerDate").selectedOptions[0].textContent;
+  if (!confirm((o.isChange ? "クラスを移る日：" : "入会する日：") + label + "\n\nこの内容で申し込みます。よろしいですか？")) return;
+  const button = document.getElementById("offerSubmit");
+  button.disabled = true; button.textContent = "送信中...";
+  try {
+    const r = await offerApi("answerOffer", { entryId: o.id, answer: answer });
+    document.getElementById("offerBody").innerHTML = "<div class='parkDone'><div class='big'>お申し込みを受け付けました</div>" +
+      "<div class='sub' style='margin-top:8px;text-align:left;white-space:pre-wrap;'>" + escapeHtml(r.summary.join("\n")) + "</div></div>" +
+      "<div class='notice' style='margin-top:12px;'>教室の担当者から、あらためてご連絡します。</div>" +
+      (parentToken ? "<button class='secondary' style='width:100%;margin-top:12px;' onclick='reloadHome()'>ホームへ</button>" : "");
+  } catch (error) {
+    button.disabled = false; button.textContent = "この内容で申し込む";
+    fail(error.message || String(error));
+  }
+}
+
+async function reloadHome() {
+  homeData = null;
+  await loadHome();
 }
 
 // 戻るボタン：ホームの内容（お子さまの名前など）は他の画面の操作では変わらないため、
