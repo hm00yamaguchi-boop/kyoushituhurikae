@@ -139,7 +139,14 @@
     <h3 style="font-size:15px; margin:18px 0 0;">空き状況</h3>
     <div id="apVacancy"><div class="loadingSmall">読み込み中...</div></div>
 
-    <h3 style="font-size:15px; margin:22px 0 0;">お申込み</h3>
+    <!-- 受付中のお申込みがある人は「ご兄弟の追加」だけ（2026-10-27） -->
+    <div id="apSiblingOnly" class="hidden">
+      <div class="warning" style="margin-top:16px;">希望のクラスを変えるなど、<b>予約を取り直す場合は、今のお申込みを取り消してから</b>改めてお申し込みください。</div>
+      <button class="secondary" id="apAddSiblingBtn" style="width:100%;margin-top:10px;" onclick="showSiblingForm()">＋ ご兄弟を追加で申し込む</button>
+    </div>
+
+    <div id="apFormArea">
+    <h3 style="font-size:15px; margin:22px 0 0;" id="apFormTitle">お申込み</h3>
     <label>保護者のお名前<input id="apGuardian" autocomplete="name"></label>
     <label>電話番号<input id="apPhone" type="tel" inputmode="tel" autocomplete="tel"></label>
     <div id="apChildren"></div>
@@ -155,6 +162,7 @@
     <div class="sub" style="margin-top:12px;">ご入力いただいた情報は、教室の体験・入会のご案内と、入会後の教室の運営にのみ使用します。</div>
     <button class="primary" id="apSubmit" onclick="submitApply()">申し込む</button>
     <div id="apError" class="error hidden"></div>
+    </div>
 
     <div class="sub" style="margin-top:22px;">すでに教室に通っている方は、<a href="#" onclick="goMemberFromApply();return false;">こちら（マイページ）</a>からお手続きください。</div>
   </div>
@@ -908,10 +916,32 @@ async function openApply() {
   }
 }
 
+// 受付中のお申込みがあるときは、新しいお申込みのフォームを隠して「ご兄弟の追加」だけにする
+let apMineList = [];
+function setApplyFormMode(hasMine) {
+  document.getElementById("apSiblingOnly").classList.toggle("hidden", !hasMine);
+  document.getElementById("apFormArea").classList.toggle("hidden", hasMine);
+  document.getElementById("apFormTitle").textContent = hasMine ? "ご兄弟の追加のお申込み" : "お申込み";
+  const g = document.getElementById("apGuardian"), p = document.getElementById("apPhone");
+  if (hasMine && apMineList[0]) {
+    g.value = apMineList[0].guardianName || ""; p.value = apMineList[0].phone || "";
+  }
+  g.readOnly = hasMine; p.readOnly = hasMine;
+}
+
+function showSiblingForm() {
+  document.getElementById("apFormArea").classList.remove("hidden");
+  document.getElementById("apAddSiblingBtn").classList.add("hidden");
+  document.getElementById("apFormArea").scrollIntoView({ behavior: "smooth" });
+}
+
 async function loadMyApplications() {
   const area = document.getElementById("apMine");
   try {
     const list = await callApi("getMyApplications", { idToken: currentIdToken });
+    apMineList = list;
+    setApplyFormMode(list.length > 0);
+    document.getElementById("apAddSiblingBtn").classList.remove("hidden");
     area.innerHTML = list.length ? "<h3 style='font-size:15px; margin:18px 0 0;'>受付中のお申込み</h3>" + list.map(function(r) {
       return "<div class='transferRow'><div class='lessonName'>" + escapeHtml(r.children.join("・")) + "</div>" +
         "<div class='sub'>" + escapeHtml(r.applyKind === "体験申込" ? "体験のお申込み" : "空き待ち") + "・" + escapeHtml(r.status) + "（受付 " + escapeHtml(r.receivedAt) + "）</div>" +
