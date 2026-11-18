@@ -17,6 +17,7 @@
   button.primary { width:100%; border:0; border-radius:9px; padding:13px; background:#2563eb; color:white; font-weight:800; cursor:pointer; font-size:15px; margin-top:16px; }
   button.secondary { border:1px solid #cbd5e1; border-radius:9px; padding:11px 14px; background:white; cursor:pointer; font-weight:700; }
   button.danger { border:1px solid #ef4444; border-radius:9px; padding:11px 14px; background:white; color:#dc2626; cursor:pointer; font-weight:700; }
+  .friendBox { background:#fff7ed; border:2px solid #fb923c; color:#9a3412; border-radius:10px; padding:12px 14px; font-size:14px; line-height:1.6; margin-bottom:12px; }
   .notice { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; }
   .warning { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; }
   .error { color:#dc2626; margin-top:10px; font-size:13px; white-space:pre-wrap; }
@@ -132,6 +133,7 @@
   <!-- 体験・入会のお申込み（店内QRから） -->
   <div id="applyPage" class="card hidden">
     <h2 style="margin-top:0;">体験・入会のお申込み</h2>
+    <div id="apFriend" class="friendBox hidden"></div>
     <div class="notice">空きのあるクラスは<b>体験のお申込み</b>になります。満席のクラスは<b>空き待ちのご予約</b>（第3希望まで）になり、空きが出たら受付順に公式LINEでご連絡します。</div>
 
     <div id="apMine"></div>
@@ -381,6 +383,7 @@
       <label>第2希望（任意）<select id="sbChoice2"></select></label>
       <label>第3希望（任意）<select id="sbChoice3"></select></label>
     </div>
+    <div id="sbFriend" class="friendBox hidden" style="margin-top:12px;"></div>
     <button class="primary" id="sbSubmit" onclick="submitSibling()">申し込む</button>
     <div id="sbError" class="error hidden"></div>
   </div>
@@ -890,6 +893,7 @@ async function openApply() {
   window.scrollTo(0, 0);
   renderApplyChildren();
   loadMyApplications();
+  requireFriend("apFriend"); // 開いた時点で友だち追加されていなければ、上に案内を出す
   try {
     publicVacancy = await callApi("getPublicVacancy", {});
     let html = "", day = null;
@@ -993,6 +997,47 @@ function updateApplyMode() {
   document.getElementById("apSubmit").textContent = !id ? "申し込む" : space ? "体験を申し込む" : "空き待ちを予約する";
 }
 
+// ------------------------------------
+// 公式LINEの友だち追加の確認（2026-11-18）
+// 友だち追加されていないと、空きのお知らせなどのLINEが届かないため、申し込む前に確かめる。
+// ------------------------------------
+let friendUrl = null;
+
+// true＝友だち／false＝友だちではない／null＝確かめられない（その場合は止めない）
+async function checkFriend() {
+  try {
+    const r = await liff.getFriendship();
+    return !!(r && r.friendFlag);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function openFriendAdd() {
+  try {
+    if (friendUrl === null) friendUrl = (await callApi("getFriendUrl", {})).url || "";
+  } catch (e) { friendUrl = ""; }
+  if (friendUrl) liff.openWindow({ url: friendUrl, external: false });
+  else alert("LINEのトーク画面で、AIR TRICK（トランポリン教室）の公式アカウントを友だち追加してください。");
+}
+
+// 友だちでなければ案内を出して false を返す
+async function requireFriend(boxId) {
+  const box = document.getElementById(boxId);
+  const status = await checkFriend();
+  if (status === false) {
+    box.innerHTML = "<b>公式LINEの友だち追加をお願いします</b><br>" +
+      "空きのお知らせや体験日のご連絡は、公式LINEでお送りします。友だち追加されていないと届きません。<br>" +
+      "<button class='primary' style='margin-top:8px;' onclick='openFriendAdd()'>公式LINEを友だち追加する</button>" +
+      "<div class='sub' style='margin-top:6px;'>友だち追加が済んだら、この画面に戻って、もう一度「申し込む」を押してください。</div>";
+    box.classList.remove("hidden");
+    box.scrollIntoView({ behavior: "smooth", block: "center" });
+    return false;
+  }
+  box.classList.add("hidden");
+  return true;
+}
+
 async function submitApply() {
   const errorBox = document.getElementById("apError");
   const showError = function(text) { errorBox.textContent = text; errorBox.classList.remove("hidden"); };
@@ -1009,6 +1054,8 @@ async function submitApply() {
   const choices = (space ? [1] : [1, 2, 3]).map(function(n) { return document.getElementById("apChoice" + n).value; }).filter(Boolean);
   if (!choices.length) { showError("第1希望のクラスを選んでください。"); return; }
   if (new Set(choices).size !== choices.length) { showError("同じクラスが複数の希望に入っています。"); return; }
+
+  if (!(await requireFriend("apFriend"))) return;
 
   const names = applyChildren.map(function(c) { return c.name; }).join("・");
   if (!confirm(names + " さんの" + (space ? "体験" : "空き待ち") + "を申し込みます。よろしいですか？")) return;
@@ -1662,6 +1709,7 @@ async function openSibling() {
   window.scrollTo(0, 0);
   document.getElementById("sbError").classList.add("hidden");
   document.getElementById("sbList").innerHTML = "<div class='loadingSmall'>読み込み中...</div>";
+  requireFriend("sbFriend");
   try {
     const results = await Promise.all([callApi("getClassChangeRequests", {}), vacancyData ? Promise.resolve(vacancyData) : loadVacancyData()]);
     renderSiblingList(results[0].filter(function(r) { return r.type === "新規入会"; }));
@@ -1752,6 +1800,8 @@ async function submitSibling() {
   const choices = (space ? [1] : [1, 2, 3]).map(function(n) { return document.getElementById("sbChoice" + n).value; }).filter(Boolean);
   if (!choices.length) { showError("第1希望のクラスを選んでください。"); return; }
   if (new Set(choices).size !== choices.length) { showError("同じクラスが複数の希望に入っています。"); return; }
+
+  if (!(await requireFriend("sbFriend"))) return;
 
   const names = siblingChildren.map(function(c) { return c.name; }).join("・");
   if (!confirm(names + " さんの" + (space ? "体験" : "空き待ち") + "を申し込みます。よろしいですか？")) return;
