@@ -17,6 +17,7 @@
   button.primary { width:100%; border:0; border-radius:9px; padding:13px; background:#2563eb; color:white; font-weight:800; cursor:pointer; font-size:15px; margin-top:16px; }
   button.secondary { border:1px solid #cbd5e1; border-radius:9px; padding:11px 14px; background:white; cursor:pointer; font-weight:700; }
   button.danger { border:1px solid #ef4444; border-radius:9px; padding:11px 14px; background:white; color:#dc2626; cursor:pointer; font-weight:700; }
+  .nameRow { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   .friendBox { background:#fff7ed; border:2px solid #fb923c; color:#9a3412; border-radius:10px; padding:12px 14px; font-size:14px; line-height:1.6; margin-bottom:12px; }
   .notice { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; }
   .warning { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; }
@@ -541,6 +542,7 @@ async function init() {
     lastMigrateToken = res.data.migrateToken || "";
     if (res.data.linked) {
       parentToken = res.data.token;
+      if (res.data.intro) sendIntro(res.data.intro, true);
       // ログインの返事にホームの情報が入っていれば、そのまま表示（問い合わせ1回分速い）
       if (res.data.home) renderHome(res.data.home); else await loadHome();
       if (offerIdParam()) openOffer(offerIdParam());
@@ -564,6 +566,19 @@ async function init() {
   }
 }
 
+// 入会のご連絡：保護者のLINEから、公式LINEのチャットへお子さまの名前・クラスを自動で送る（2026-11-20）
+// スタッフがチャットで相手を見分けるため。保護者が送る形なので、公式LINEの月の送信数は使わない。
+// LINEアプリの中で開いたときだけ送れる。送れなかったら、次に開いたときにもう一度送る（mark=true のとき）。
+async function sendIntro(text, mark) {
+  try {
+    if (!text || !liff.isInClient()) return;
+    await liff.sendMessages([{ type: "text", text: text }]);
+    if (mark) await callApi("markIntroSent", { idToken: currentIdToken });
+  } catch (e) {
+    console.warn("入会のご連絡を送れませんでした", e);
+  }
+}
+
 function submitLinkCode() {
   const code = document.getElementById("codeInput").value.trim();
   const errorBox = document.getElementById("linkError");
@@ -579,6 +594,7 @@ function submitLinkCode() {
       const res = await response.json();
       if (!res.success) { errorBox.textContent = res.error; errorBox.classList.remove("hidden"); return; }
       parentToken = res.data.token;
+      if (res.data.intro) sendIntro(res.data.intro, false);
       await loadHome();
     } catch (error) {
       errorBox.textContent = error.message || String(error);
@@ -833,6 +849,7 @@ async function submitOffer() {
   button.disabled = true; button.textContent = "送信中...";
   try {
     const r = await offerApi("answerOffer", { entryId: o.id, answer: answer });
+    if (r.intro) sendIntro(r.intro, true);
     document.getElementById("offerBody").innerHTML = "<div class='parkDone'><div class='big'>お申し込みを受け付けました</div>" +
       "<div class='sub' style='margin-top:8px;text-align:left;white-space:pre-wrap;'>" + escapeHtml(r.summary.join("\n")) + "</div></div>" +
       "<div class='notice' style='margin-top:12px;'>教室の担当者から、あらためてご連絡します。</div>" +
@@ -959,10 +976,27 @@ async function loadMyApplications() {
   }
 }
 
+// 名前は「姓」「名」に分けて入力し、全角スペースでつなぐ（2026-11-20）
+function splitName(name) {
+  const parts = String(name || "").trim().split(/[\s　]+/);
+  return { last: parts[0] || "", first: parts.slice(1).join("") };
+}
+function joinName(last, first) {
+  last = String(last || "").replace(/[\s　]+/g, "");
+  first = String(first || "").replace(/[\s　]+/g, "");
+  return last && first ? last + "　" + first : (last || first);
+}
+function nameInputsHtml(prefix, i, c) {
+  const n = c.last !== undefined ? { last: c.last, first: c.first } : splitName(c.name);
+  return "<div class='nameRow'><label>お名前（姓）<input id='" + prefix + "Last" + i + "' value='" + escapeHtml(n.last || "") + "' placeholder='例：山田'></label>" +
+    "<label>お名前（名）<input id='" + prefix + "First" + i + "' value='" + escapeHtml(n.first || "") + "' placeholder='例：太郎'></label></div>";
+}
+
 function readApplyChildren() {
   applyChildren = applyChildren.map(function(c, i) {
     const v = function(id) { const el = document.getElementById(id + i); return el ? el.value : ""; };
-    return { kana: v("apKana"), name: v("apName"), gender: v("apGender"), birthday: v("apBirthday"), experience: v("apExp") };
+    const last = v("apLast").trim(), first = v("apFirst").trim();
+    return { kana: v("apKana"), last: last, first: first, name: joinName(last, first), gender: v("apGender"), birthday: v("apBirthday"), experience: v("apExp") };
   });
 }
 function addApplyChild() { readApplyChildren(); applyChildren.push({}); renderApplyChildren(); }
@@ -973,7 +1007,7 @@ function renderApplyChildren() {
     return "<div class='childCard'><div class='toolbar'><strong>お子さま" + (applyChildren.length > 1 ? "（" + (i + 1) + "人目）" : "") + "</strong>" +
       (applyChildren.length > 1 ? "<button class='secondary' onclick='removeApplyChild(" + i + ")'>削除</button>" : "") + "</div>" +
       "<label>ふりがな<input id='apKana" + i + "' value='" + escapeHtml(c.kana || "") + "'></label>" +
-      "<label>お名前<input id='apName" + i + "' value='" + escapeHtml(c.name || "") + "'></label>" +
+      nameInputsHtml("ap", i, c) +
       "<label>性別<select id='apGender" + i + "'>" + ["", "男", "女"].map(function(g) {
         return "<option value='" + g + "'" + (g === (c.gender || "") ? " selected" : "") + ">" + (g || "選んでください") + "</option>";
       }).join("") + "</select></label>" +
@@ -1047,8 +1081,8 @@ async function submitApply() {
   const phone = document.getElementById("apPhone").value.trim();
   if (!guardianName) { showError("保護者のお名前を入力してください。"); return; }
   if (phone.replace(/[^0-9]/g, "").length < 10) { showError("電話番号を正しく入力してください。"); return; }
-  if (applyChildren.some(function(c) { return !c.kana.trim() || !c.name.trim() || !c.birthday; })) {
-    showError("お子さまのふりがな・お名前・生年月日を入力してください。"); return;
+  if (applyChildren.some(function(c) { return !c.kana.trim() || !c.last || !c.first || !c.birthday; })) {
+    showError("お子さまのふりがな・お名前（姓と名）・生年月日を入力してください。"); return;
   }
   const space = applyHasSpace();
   const choices = (space ? [1] : [1, 2, 3]).map(function(n) { return document.getElementById("apChoice" + n).value; }).filter(Boolean);
@@ -1734,7 +1768,8 @@ function renderSiblingList(list) {
 function readSiblingChildren() {
   siblingChildren = siblingChildren.map(function(c, i) {
     const v = function(id) { const el = document.getElementById(id + i); return el ? el.value : ""; };
-    return { kana: v("sbKana"), name: v("sbName"), gender: v("sbGender"), birthday: v("sbBirthday"), experience: v("sbExp") };
+    const last = v("sbLast").trim(), first = v("sbFirst").trim();
+    return { kana: v("sbKana"), last: last, first: first, name: joinName(last, first), gender: v("sbGender"), birthday: v("sbBirthday"), experience: v("sbExp") };
   });
 }
 
@@ -1746,7 +1781,7 @@ function renderSiblingChildren() {
     return "<div class='childCard'><div class='toolbar'><strong>" + (i + 1) + "人目</strong>" +
       (siblingChildren.length > 1 ? "<button class='secondary' onclick='removeSiblingChild(" + i + ")'>削除</button>" : "") + "</div>" +
       "<label>ふりがな<input id='sbKana" + i + "' value='" + escapeHtml(c.kana || "") + "'></label>" +
-      "<label>お名前<input id='sbName" + i + "' value='" + escapeHtml(c.name || "") + "'></label>" +
+      nameInputsHtml("sb", i, c) +
       "<label>性別<select id='sbGender" + i + "'>" + ["", "男", "女"].map(function(g) {
         return "<option value='" + g + "'" + (g === (c.gender || "") ? " selected" : "") + ">" + (g || "選んでください") + "</option>";
       }).join("") + "</select></label>" +
@@ -1793,8 +1828,8 @@ async function submitSibling() {
   const showError = function(text) { errorBox.textContent = text; errorBox.classList.remove("hidden"); };
   errorBox.classList.add("hidden");
   readSiblingChildren();
-  if (siblingChildren.some(function(c) { return !c.kana.trim() || !c.name.trim() || !c.birthday; })) {
-    showError("お子さまのふりがな・お名前・生年月日を入力してください。"); return;
+  if (siblingChildren.some(function(c) { return !c.kana.trim() || !c.last || !c.first || !c.birthday; })) {
+    showError("お子さまのふりがな・お名前（姓と名）・生年月日を入力してください。"); return;
   }
   const space = siblingHasSpace();
   const choices = (space ? [1] : [1, 2, 3]).map(function(n) { return document.getElementById("sbChoice" + n).value; }).filter(Boolean);
